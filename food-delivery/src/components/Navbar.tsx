@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import styled from "styled-components";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaHome, FaShoppingCart } from "react-icons/fa";
-import RegistrationModal from "./RegistrationModal";
 
 // Стилови за Navbar
 const NavbarContainer = styled.nav`
@@ -47,11 +46,29 @@ const StyledLink = styled(Link)<{ to: string }>`
   }
 `;
 
-const Navbar: React.FC = () => {
-  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+const Button = styled.button`
+  background-color: #48bb78;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  transition: background-color 0.3s;
 
-  const handleOpenModal = () => setIsRegistrationModalOpen(true);
-  const handleCloseModal = () => setIsRegistrationModalOpen(false);
+  &:hover {
+    background-color: #38a169;
+  }
+`;
+
+const Navbar: React.FC = () => {
+  const navigate = useNavigate(); // Користење на useNavigate
+
+  // Функција за отварање на страницата за регистрација
+  const handleOpenRegistration = () => {
+    navigate("/register"); // Пренасочување на /register
+  };
 
   return (
     <NavbarContainer>
@@ -68,25 +85,7 @@ const Navbar: React.FC = () => {
       </NavLinks>
 
       {/* Копче за регистрација */}
-      <button
-        onClick={handleOpenModal}
-        style={{
-          backgroundColor: "#48BB78",
-          color: "white",
-          padding: "10px 15px",
-          border: "none",
-          borderRadius: "5px",
-          cursor: "pointer",
-        }}
-      >
-        Регистрирај се
-      </button>
-
-      {/* Регистрациски модал */}
-      <RegistrationModal
-        isOpen={isRegistrationModalOpen}
-        onClose={handleCloseModal}
-      />
+      <Button onClick={handleOpenRegistration}>Регистрирај се</Button>
     </NavbarContainer>
   );
 };

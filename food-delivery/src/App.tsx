@@ -7,7 +7,7 @@ import Cart from "./pages/Cart";
 import { Provider } from "react-redux";
 import store from "./store/store";
 import MainFooter from "./components/DownFooter";
-
+import RegistrationPage from "./components/RegistrationPage";
 const sampleRestaurants = [
   {
     id: 1,
@@ -332,7 +332,8 @@ const App: React.FC = () => {
               path="/restaurants/:id"
               element={<RestaurantDetails restaurants={sampleRestaurants} />}
             />
-            {/* <Route path="/checkout" element={<Checkout />} /> */}
+            <Route path="/register" element={<RegistrationPage />} />
+
             <Route path="/cart" element={<Cart />} />
           </Routes>
         </Router>
