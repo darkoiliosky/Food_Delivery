@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import styled from "styled-components";
-import RestaurantList from "../components/RestaurantList";
+import RestaurantList from "./Restauraunt/RestaurantList";
 
 const Header = styled.div`
   display: flex;

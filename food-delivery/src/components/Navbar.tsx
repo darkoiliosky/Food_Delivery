@@ -90,7 +90,7 @@ const Navbar: React.FC = () => {
       </NavLinks>
 
       {/* Копче за регистрација */}
-      <Button onClick={handleOpenRegistration}>Регистрирај се</Button>
+      <Button onClick={handleOpenRegistration}>Најави се</Button>
     </NavbarContainer>
   );
 };

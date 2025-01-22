@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
-import RestaurantDetails from "./components/RestaurantDetails";
+import RestaurantDetails from "./components/Restauraunt/RestaurantDetails";
 // import Checkout from "./pages/Checkout";
 import Cart from "./pages/Cart";
 import { Provider } from "react-redux";
@@ -336,7 +336,6 @@ const App: React.FC = () => {
             <Route path="/register" element={<RegistrationPage />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/profile" element={<UserProfile />} />{" "}
-            {/* Додадено ново рутирање за профил */}
           </Routes>
         </Router>
       </Provider>

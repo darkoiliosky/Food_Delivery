@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useParams } from "react-router-dom";
-import { addToCart } from "../store/cartSlice";
+import { addToCart } from "../../store/cartSlice";
 import Modal from "react-modal";
 import styled from "styled-components";
-import CategoryFilter from "./CategoryFilter"; // Импортирање на новата компонента
+import CategoryFilter from "../CategoryFilter"; // Импортирање на новата компонента
 
 Modal.setAppElement("#root");
 

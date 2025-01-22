@@ -1,12 +1,13 @@
+// cartSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface CartItem {
   id: number;
   name: string;
-  price: number; // Цена на еден производ
-  quantity: number; // Количина
-  totalPrice: number; // Вкупна цена за производот
-  addons?: string[]; // Додатоци (опционално)
+  price: number;
+  quantity: number;
+  totalPrice: number;
+  addons?: string[];
 }
 
 interface CartState {
@@ -25,15 +26,14 @@ const cartSlice = createSlice({
       const existingItem = state.items.find(
         (item) => item.id === action.payload.id
       );
-
       if (existingItem) {
         existingItem.quantity += action.payload.quantity;
         existingItem.totalPrice +=
-          action.payload.price * action.payload.quantity; // Зголеми вкупната цена
+          action.payload.price * action.payload.quantity;
       } else {
         state.items.push({
           ...action.payload,
-          totalPrice: action.payload.price * action.payload.quantity, // Пресметај вкупна цена
+          totalPrice: action.payload.price * action.payload.quantity,
         });
       }
     },
@@ -47,7 +47,7 @@ const cartSlice = createSlice({
       if (existingItem) {
         if (existingItem.quantity > 1) {
           existingItem.quantity -= 1;
-          existingItem.totalPrice -= existingItem.price; // Намали вкупна цена
+          existingItem.totalPrice -= existingItem.price;
         } else {
           state.items = state.items.filter(
             (item) => item.id !== action.payload.id
@@ -55,9 +55,12 @@ const cartSlice = createSlice({
         }
       }
     },
+    updateCart: (state, action: PayloadAction<CartItem[]>) => {
+      state.items = action.payload;
+    }, // Додадено за ажурирање на кошничката
   },
 });
 
-export const { addToCart, removeFromCart, decrementQuantity } =
+export const { addToCart, removeFromCart, decrementQuantity, updateCart } =
   cartSlice.actions;
 export default cartSlice.reducer;

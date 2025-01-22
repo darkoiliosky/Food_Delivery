@@ -136,10 +136,15 @@ const RegistrationPage: React.FC = () => {
     e.preventDefault();
 
     const newErrors: FormErrors = {};
+
+    if (!formData.name) newErrors.name = "Име и презиме е задолжително!";
     if (!formData.email) newErrors.email = "Емаил е задолжителен!";
     if (!formData.password) newErrors.password = "Лозинка е задолжителна!";
     if (formData.password !== formData.confirmPassword)
       newErrors.confirmPassword = "Лозинките не се совпаѓаат!";
+    if (formData.password.length < 6)
+      newErrors.password = "Лозинката мора да има најмалку 6 карактери!";
+    if (!formData.phone) newErrors.phone = "Телефон е задолжителен!";
     if (!formData.termsAccepted && !isLogin)
       newErrors.termsAccepted = "Мора да се согласите со условите.";
 
@@ -166,7 +171,7 @@ const RegistrationPage: React.FC = () => {
             className={!isLogin ? "active" : ""}
             onClick={() => setIsLogin(false)}
           >
-            Регистрирај се
+            Регистрација
           </ToggleButton>
           <ToggleButton
             className={isLogin ? "active" : ""}
