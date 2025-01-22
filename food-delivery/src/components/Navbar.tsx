@@ -1,7 +1,7 @@
 import React from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHome, FaShoppingCart } from "react-icons/fa";
+import { FaHome, FaShoppingCart, FaUser } from "react-icons/fa"; // Додадено и FaUser за икона на профилот
 
 // Стилови за Navbar
 const NavbarContainer = styled.nav`
@@ -81,6 +81,11 @@ const Navbar: React.FC = () => {
         <StyledLink to="/cart" style={{ fontSize: "20px" }}>
           <FaShoppingCart />
           Корпа
+        </StyledLink>
+        {/* Линк за профил */}
+        <StyledLink to="/profile" style={{ fontSize: "20px" }}>
+          <FaUser />
+          Профил
         </StyledLink>
       </NavLinks>
 

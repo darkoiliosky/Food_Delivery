@@ -19,7 +19,7 @@ const RegistrationFormWrapper = styled.div`
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: 500px;
-  min-height: 600px;
+  min-height: 500px;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;

@@ -8,6 +8,7 @@ import { Provider } from "react-redux";
 import store from "./store/store";
 import MainFooter from "./components/DownFooter";
 import RegistrationPage from "./components/RegistrationPage";
+import UserProfile from "./components/UserProfile";
 const sampleRestaurants = [
   {
     id: 1,
@@ -333,8 +334,9 @@ const App: React.FC = () => {
               element={<RestaurantDetails restaurants={sampleRestaurants} />}
             />
             <Route path="/register" element={<RegistrationPage />} />
-
             <Route path="/cart" element={<Cart />} />
+            <Route path="/profile" element={<UserProfile />} />{" "}
+            {/* Додадено ново рутирање за профил */}
           </Routes>
         </Router>
       </Provider>
