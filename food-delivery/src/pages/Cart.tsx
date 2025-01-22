@@ -91,7 +91,7 @@ const Cart: React.FC = () => {
           ))}
           <TotalPrice>
             <p>Total Price:</p>
-            <span>${totalPrice.toFixed(2)}</span>
+            <span>{totalPrice.toFixed(2)}</span>
           </TotalPrice>
         </div>
       )}

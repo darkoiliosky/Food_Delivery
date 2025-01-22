@@ -3,7 +3,12 @@ const app = express();
 app.use(express.json());
 
 let users = [
-  { id: 1, name: "Иван Иванов", email: "ivan@domain.com", phone: "070123456" },
+  {
+    id: 1,
+    name: "Дарко Илиоски",
+    email: "ilioskydarko@gmail.com",
+    phone: "078942666",
+  },
 ];
 
 // За враќање на профилот на корисникот
