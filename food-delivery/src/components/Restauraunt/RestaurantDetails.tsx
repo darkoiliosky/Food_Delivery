@@ -55,6 +55,26 @@ const MenuGrid = styled.div`
   justify-content: center;
 `;
 
+const SearchContainer = styled.div`
+  display: flex;
+  justify-content: center; /* Центрирање хоризонтално */
+  margin: 20px 0; /* Мал размак од горе и доле */
+`;
+
+const SearchInput = styled.input`
+  width: 50%; /* Се поставува ширината на полето за пребарување */
+  max-width: 500px; /* Максимална ширина за полето */
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+
+  &:focus {
+    border-color: #d4593e; /* Боја на рамка при фокус */
+  }
+`;
+
 // Дефинирање на типови
 interface MenuItem {
   id: number;
@@ -88,6 +108,7 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [addons, setAddons] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState(""); // Променлива за пребарување
 
   if (isNaN(restaurantId)) {
     return <div>Невалиден идентификатор за ресторан!</div>;
@@ -104,10 +125,17 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
     ...Array.from(new Set(restaurant.menu.map((item) => item.category))),
   ];
 
+  // Филтрирање на менито по категорија и пребарување
   const filteredMenu =
     activeCategory === "All"
-      ? restaurant.menu
-      : restaurant.menu.filter((item) => item.category === activeCategory);
+      ? restaurant.menu.filter((item) =>
+          item.name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : restaurant.menu
+          .filter((item) => item.category === activeCategory)
+          .filter((item) =>
+            item.name.toLowerCase().includes(searchQuery.toLowerCase())
+          );
 
   const openModal = (item: MenuItem) => {
     setSelectedItem(item);
@@ -155,6 +183,16 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
         activeCategory={activeCategory}
         onCategoryChange={(category) => setActiveCategory(category)}
       />
+
+      {/* Поле за пребарување */}
+      <SearchContainer>
+        <SearchInput
+          type="text"
+          placeholder="Пребарај производи..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </SearchContainer>
 
       {/* Прикажување на категориите и нивното мени */}
       {categories.map(

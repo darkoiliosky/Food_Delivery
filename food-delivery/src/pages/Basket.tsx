@@ -62,7 +62,7 @@ const ProceedButton = styled.button`
   }
 `;
 
-const Cart: React.FC = () => {
+const Basket: React.FC = () => {
   const cartItems = useSelector((state: RootState) => state.cart.items);
 
   // Избројување на вкупната цена
@@ -85,7 +85,7 @@ const Cart: React.FC = () => {
                 <CartItemQuantity>Quantity: {item.quantity}</CartItemQuantity>
               </CartItemDetails>
               <CartItemPrice>
-                ${(item.price * item.quantity).toFixed(2)}
+                {(item.price * item.quantity).toFixed(2)}
               </CartItemPrice>
             </CartItem>
           ))}
@@ -100,4 +100,4 @@ const Cart: React.FC = () => {
   );
 };
 
-export default Cart;
+export default Basket;
