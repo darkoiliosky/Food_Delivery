@@ -8,7 +8,8 @@ import { Provider } from "react-redux";
 import store from "./store/store";
 import MainFooter from "./components/DownFooter";
 import RegistrationPage from "./components/RegistrationPage";
-import UserProfile from "./components/UserProfile";
+// import UserProfile from "./components/UserProfile";
+import Profile from "./components/Profile";
 const sampleRestaurants = [
   {
     id: 1,
@@ -335,7 +336,8 @@ const App: React.FC = () => {
             />
             <Route path="/register" element={<RegistrationPage />} />
             <Route path="/cart" element={<Cart />} />
-            <Route path="/profile" element={<UserProfile />} />{" "}
+            {/* <Route path="/profile" element={<UserProfile />} />{" "} */}
+            <Route path="/profile" element={<Profile />} />
           </Routes>
         </Router>
       </Provider>
