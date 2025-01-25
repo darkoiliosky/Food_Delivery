@@ -9,7 +9,7 @@ interface Restaurant {
 }
 
 interface HomeProps {
-  restaurants: Restaurant[]; // Прими рестораните како проп
+  restaurants: Restaurant[];
 }
 
 const Home: React.FC<HomeProps> = ({ restaurants }) => {

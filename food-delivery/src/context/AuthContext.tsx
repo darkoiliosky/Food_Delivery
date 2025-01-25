@@ -1,19 +1,87 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import axios from "axios";
+
+interface User {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  dob?: string;
+}
+
+interface LoginResponse {
+  token: string;
+  user: User;
+}
 
 interface AuthContextType {
   isLoggedIn: boolean;
+  user: User | null;
   setIsLoggedIn: (value: boolean) => void;
+  login: (emailOrPhone: string, password: string) => Promise<void>;
+  logout: () => void;
 }
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  // Оваа useEffect ќе се активира само кога ќе се учита компонентата
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token");
+    const storedUser = localStorage.getItem("user");
+
+    if (storedToken && storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser); // Проба за парсирање на JSON
+        setUser(parsedUser);
+        setIsLoggedIn(true);
+      } catch (error) {
+        console.error("Error parsing user data:", error); // Ако не е валиден JSON
+        localStorage.removeItem("user"); // Избриши невалиден user
+        localStorage.removeItem("token"); // Избриши невалиден токен
+        setIsLoggedIn(false);
+        setUser(null);
+      }
+    } else {
+      setIsLoggedIn(false);
+      setUser(null);
+    }
+  }, []);
+  const login = async (emailOrPhone: string, password: string) => {
+    try {
+      const response = await axios.post<LoginResponse>(
+        "http://localhost:5000/login",
+        { emailOrPhone, password }
+      );
+      const { token, user } = response.data;
+
+      // Запишувај ги токенот и податоците за корисникот во localStorage
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      setUser(user);
+      setIsLoggedIn(true); // Постави статус на најавен
+    } catch (error) {
+      console.error("Login error:", error);
+      throw new Error("Неуспешна најава. Проверете ги податоците.");
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    setIsLoggedIn(false); // Постави статус на одјавен
+  };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, setIsLoggedIn }}>
+    <AuthContext.Provider
+      value={{ isLoggedIn, user, setIsLoggedIn, login, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

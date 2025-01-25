@@ -1,10 +1,9 @@
 import React from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHome, FaShoppingCart, FaUser } from "react-icons/fa"; // Импортирај FaUser
-import { useAuth } from "../context/AuthContext"; // Импортирај го AuthContext
+import { FaHome, FaShoppingCart, FaUser } from "react-icons/fa";
+import { useAuth } from "../context/AuthContext";
 
-// Стилови за Navbar
 const NavbarContainer = styled.nav`
   display: flex;
   justify-content: space-between;
@@ -12,24 +11,12 @@ const NavbarContainer = styled.nav`
   background-color: #282c34;
   padding: 10px 20px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 10px;
-  }
 `;
 
 const NavLinks = styled.div`
   display: flex;
   align-items: center;
   gap: 20px;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
 `;
 
 const StyledLink = styled(Link)`
@@ -64,35 +51,33 @@ const Button = styled.button`
 `;
 
 const Navbar: React.FC = () => {
-  const navigate = useNavigate(); // Користење на useNavigate
-  const { isLoggedIn, setIsLoggedIn } = useAuth(); // Користење на AuthContext
+  const navigate = useNavigate();
+  const { isLoggedIn, user, logout } = useAuth();
 
   const handleLogout = () => {
-    setIsLoggedIn(false); // Одјави го корисникот
+    logout();
     navigate("/login");
   };
 
   return (
     <NavbarContainer>
-      {/* Линковите на левата страна */}
       <NavLinks>
-        <StyledLink to="/" style={{ fontSize: "20px" }}>
-          <FaHome />
-          Дома
+        <StyledLink to="/">
+          <FaHome /> Home
         </StyledLink>
-        <StyledLink to="/cart" style={{ fontSize: "20px" }}>
-          <FaShoppingCart />
-          Корпа
+        <StyledLink to="/cart">
+          <FaShoppingCart /> Cart
         </StyledLink>
       </NavLinks>
-
-      {/* Десен дел */}
       {isLoggedIn ? (
-        <Button onClick={handleLogout}>
-          <FaUser /> Одјави се
-        </Button>
+        <>
+          <StyledLink to="/profile">
+            <FaUser /> {user?.firstName || "Profile"}
+          </StyledLink>
+          <Button onClick={handleLogout}>Logout</Button>
+        </>
       ) : (
-        <Button onClick={() => navigate("/login")}>Најави се</Button>
+        <Button onClick={() => navigate("/login")}>Login</Button>
       )}
     </NavbarContainer>
   );

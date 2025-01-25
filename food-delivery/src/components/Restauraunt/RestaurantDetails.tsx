@@ -134,7 +134,7 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   useEffect(() => {
     const fetchMenu = async () => {
       try {
-        const response = await axios.get(
+        const response = await axios.get<MenuItem[]>(
           `http://localhost:5000/restaurants/${id}/menu`
         );
         setMenuItems(response.data);

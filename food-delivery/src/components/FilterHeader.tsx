@@ -60,7 +60,11 @@ interface HeaderProps {
   restaurants: Restaurant[];
 }
 
-const FilterHeader: React.FC<HeaderProps> = ({ restaurants }) => {
+const FilterHeader: React.FC<HeaderProps> = ({
+  restaurants,
+}: {
+  restaurants: Restaurant[];
+}) => {
   const [filter, setFilter] = useState<string>("All");
   const [searchTerm, setSearchTerm] = useState<string>("");
 

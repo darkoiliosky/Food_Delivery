@@ -1,9 +1,8 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
-import axios from "axios";
 import styled from "styled-components";
+import { Link, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext"; // Импорт на AuthContext
+import { useAuth } from "../../context/AuthContext";
 import "react-toastify/dist/ReactToastify.css";
 
 const Container = styled.div`
@@ -63,7 +62,7 @@ const StyledButton = styled.button`
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { setIsLoggedIn } = useAuth(); // Користи AuthContext
+  const { login } = useAuth();
   const [loginData, setLoginData] = useState({
     emailOrPhone: "",
     password: "",
@@ -77,8 +76,7 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      await axios.post("http://localhost:5000/login", loginData);
-      setIsLoggedIn(true); // Постави статус дека е најавен
+      await login(loginData.emailOrPhone, loginData.password);
       toast.success("Login successful!");
       setTimeout(() => {
         navigate("/");
@@ -113,6 +111,12 @@ const Login: React.FC = () => {
           />
           <StyledButton type="submit">Login</StyledButton>
         </StyledForm>
+        <p style={{ textAlign: "center", marginTop: "1rem" }}>
+          Don't have an account?{" "}
+          <Link to="/register" style={{ color: "#3498db", fontWeight: "bold" }}>
+            Register here
+          </Link>
+        </p>
       </FormWrapper>
     </Container>
   );

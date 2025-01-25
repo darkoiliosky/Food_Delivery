@@ -131,7 +131,11 @@ app.get("/profile", authenticateToken, async (req, res) => {
       "SELECT name, lastname, email, phone FROM users WHERE id = $1",
       [req.user.id]
     );
-    res.json(result.rows[0]);
+    if (result.rows.length > 0) {
+      res.json(result.rows[0]); // Врати ги податоците за корисникот
+    } else {
+      res.status(404).send("User not found");
+    }
   } catch (error) {
     console.error("Error fetching profile", error);
     res.status(500).send("Error fetching profile.");
@@ -179,5 +183,26 @@ app.get("/restaurants/:id/menu", async (req, res) => {
   } catch (error) {
     console.error("Error fetching menu items:", error);
     res.status(500).send("Error fetching menu items");
+  }
+});
+
+app.put("/profile", authenticateToken, async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone } = req.body;
+
+    // Ажурирање на податоци во базата
+    const result = await client.query(
+      "UPDATE users SET name = $1, lastname = $2, email = $3, phone = $4 WHERE id = $5",
+      [firstName, lastName, email, phone, req.user.id]
+    );
+
+    if (result.rowCount > 0) {
+      res.send("Profile updated successfully.");
+    } else {
+      res.status(400).send("Failed to update profile.");
+    }
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    res.status(500).send("Error updating profile.");
   }
 });

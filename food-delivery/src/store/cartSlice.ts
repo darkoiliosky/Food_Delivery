@@ -22,7 +22,6 @@ const cartSlice = createSlice({
   initialState,
   reducers: {
     addToCart: (state, action: PayloadAction<CartItem>) => {
-      console.log("Item Added to Cart:", action.payload); // Логирај го новиот продукт
       const existingItem = state.items.find(
         (item) => item.id === action.payload.id
       );
