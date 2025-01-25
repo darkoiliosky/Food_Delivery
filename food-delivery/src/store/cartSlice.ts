@@ -1,4 +1,3 @@
-// cartSlice.ts
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface CartItem {
@@ -23,20 +22,18 @@ const cartSlice = createSlice({
   initialState,
   reducers: {
     addToCart: (state, action: PayloadAction<CartItem>) => {
+      console.log("Item Added to Cart:", action.payload); // Логирај го новиот продукт
       const existingItem = state.items.find(
         (item) => item.id === action.payload.id
       );
       if (existingItem) {
         existingItem.quantity += action.payload.quantity;
-        existingItem.totalPrice +=
-          action.payload.price * action.payload.quantity;
+        existingItem.totalPrice += action.payload.totalPrice;
       } else {
-        state.items.push({
-          ...action.payload,
-          totalPrice: action.payload.price * action.payload.quantity,
-        });
+        state.items.push(action.payload);
       }
     },
+
     removeFromCart: (state, action: PayloadAction<{ id: number }>) => {
       state.items = state.items.filter((item) => item.id !== action.payload.id);
     },
@@ -44,6 +41,7 @@ const cartSlice = createSlice({
       const existingItem = state.items.find(
         (item) => item.id === action.payload.id
       );
+
       if (existingItem) {
         if (existingItem.quantity > 1) {
           existingItem.quantity -= 1;
@@ -57,10 +55,18 @@ const cartSlice = createSlice({
     },
     updateCart: (state, action: PayloadAction<CartItem[]>) => {
       state.items = action.payload;
-    }, // Додадено за ажурирање на кошничката
+    },
+    clearCart: (state) => {
+      state.items = [];
+    }, // Додадено за целосно чистење на корпата
   },
 });
 
-export const { addToCart, removeFromCart, decrementQuantity, updateCart } =
-  cartSlice.actions;
+export const {
+  addToCart,
+  removeFromCart,
+  decrementQuantity,
+  updateCart,
+  clearCart,
+} = cartSlice.actions;
 export default cartSlice.reducer;

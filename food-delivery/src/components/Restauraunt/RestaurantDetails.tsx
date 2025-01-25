@@ -1,336 +1,237 @@
-import React, { useState } from "react";
-import { useDispatch } from "react-redux";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { addToCart } from "../../store/cartSlice";
-import Modal from "react-modal";
+import axios from "axios";
 import styled from "styled-components";
-import CategoryFilter from "../CategoryFilter"; // Импортирање на новата компонента
+import { useAppDispatch } from "../../store/store"; // Користи типизираниот dispatch
+import { addToCart } from "../../store/cartSlice";
+import AddToCartModal from "./AddToCartModal"; // Увоз на модал компонентата
 
-Modal.setAppElement("#root");
-
-// Styled components
-const ModalContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  width: 90%;
-  max-width: 400px;
-  border-radius: 8px;
-  background-color: #fff;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-`;
-
-const CategoryHeader = styled.h4`
-  width: 100%;
-  text-align: center;
-  background-color: cornsilk;
-  padding: 10px;
-  margin-top: 20px;
-  color: #2d3748;
-  border-radius: 4px;
-  font-size: 18px;
-`;
-
-const MenuItemCard = styled.div`
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  width: calc(33.333% - 20px);
-
-  @media (max-width: 768px) {
-    width: calc(50% - 10px);
-  }
-
-  @media (max-width: 480px) {
-    width: 100%;
-  }
-`;
-
-const MenuGrid = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: center;
-`;
-
-const SearchContainer = styled.div`
-  display: flex;
-  justify-content: center; /* Центрирање хоризонтално */
-  margin: 20px 0; /* Мал размак од горе и доле */
-`;
-
-const SearchInput = styled.input`
-  width: 50%; /* Се поставува ширината на полето за пребарување */
-  max-width: 500px; /* Максимална ширина за полето */
-  padding: 10px;
-  font-size: 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  outline: none;
-
-  &:focus {
-    border-color: #d4593e; /* Боја на рамка при фокус */
-  }
-`;
-
-// Дефинирање на типови
 interface MenuItem {
   id: number;
   name: string;
   price: number;
-  image: string;
+  imageurl: string;
   category: string;
-  addons?: string[];
-  ingredients?: string[]; // Додадено поле за состојки
+  ingredients: string[];
+  addons: string[];
 }
 
 interface Restaurant {
   id: number;
   name: string;
-  menu: MenuItem[];
+  cuisine: string;
+  imageurl: string;
+  workinghours: string;
 }
 
 interface RestaurantDetailsProps {
   restaurants: Restaurant[];
 }
 
+const Container = styled.div`
+  padding: 20px;
+`;
+
+const RestaurantHeader = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  img {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-size: 2rem;
+    color: #333;
+    margin-bottom: 10px;
+  }
+
+  p {
+    font-size: 1rem;
+    color: #666;
+    margin-bottom: 5px;
+
+    &.working-hours {
+      font-weight: bold;
+      color: #3498db;
+    }
+  }
+`;
+
+const MenuGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+  margin-top: 30px;
+`;
+
+const MenuItemCard = styled.div`
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 5px;
+    margin-bottom: 10px;
+  }
+
+  h3 {
+    font-size: 1.2rem;
+    color: #333;
+    margin-bottom: 5px;
+  }
+
+  p {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 5px;
+
+    &.price {
+      font-weight: bold;
+      color: #2ecc71;
+    }
+  }
+
+  button {
+    background-color: #48bb78;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+
+    &:hover {
+      background-color: #2f855a;
+    }
+  }
+`;
+
 const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   restaurants,
 }) => {
-  const dispatch = useDispatch();
   const { id } = useParams<{ id: string }>();
-  const restaurantId = parseInt(id ?? "", 10);
+  const dispatch = useAppDispatch(); // Користи го dispatch од Redux
+  const restaurant = restaurants.find((r) => r.id === Number(id));
 
-  const [modalIsOpen, setModalIsOpen] = useState(false);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [addons, setAddons] = useState<string[]>([]);
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [searchQuery, setSearchQuery] = useState(""); // Променлива за пребарување
 
-  if (isNaN(restaurantId)) {
-    return <div>Невалиден идентификатор за ресторан!</div>;
-  }
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        const response = await axios.get(
+          `http://localhost:5000/restaurants/${id}/menu`
+        );
+        setMenuItems(response.data);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching menu items:", error);
+        setLoading(false);
+      }
+    };
 
-  const restaurant = restaurants.find((r) => r.id === restaurantId);
+    fetchMenu();
+  }, [id]);
 
   if (!restaurant) {
-    return <div>Ресторанот не е пронајден!</div>;
+    return <p>Ресторанот не е пронајден.</p>;
   }
 
-  const categories = [
-    "All",
-    ...Array.from(new Set(restaurant.menu.map((item) => item.category))),
-  ];
-
-  // Филтрирање на менито по категорија и пребарување
-  const filteredMenu =
-    activeCategory === "All"
-      ? restaurant.menu.filter((item) =>
-          item.name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      : restaurant.menu
-          .filter((item) => item.category === activeCategory)
-          .filter((item) =>
-            item.name.toLowerCase().includes(searchQuery.toLowerCase())
-          );
+  if (loading) {
+    return <p>Вчитување на менито...</p>;
+  }
 
   const openModal = (item: MenuItem) => {
     setSelectedItem(item);
-    setModalIsOpen(true);
+    setModalOpen(true);
   };
 
   const closeModal = () => {
-    setModalIsOpen(false);
     setSelectedItem(null);
-    setQuantity(1);
-    setAddons([]);
+    setModalOpen(false);
   };
 
-  const handleAddToCart = () => {
-    if (selectedItem && quantity > 0) {
+  const handleAddToCart = (
+    selectedAddons: { name: string; price: number }[]
+  ) => {
+    console.log("Selected Addons:", selectedAddons); // Додади лог
+    if (selectedItem) {
+      const addonsPrice = selectedAddons.reduce(
+        (total, addon) => total + Number(addon.price),
+        0
+      );
+      const totalPrice = selectedItem.price + addonsPrice;
+
+      console.log("Addons Price:", addonsPrice); // Проверка на цената на додатоците
+      console.log("Total Price:", totalPrice); // Проверка на конечната цена
+
       dispatch(
         addToCart({
           id: selectedItem.id,
           name: selectedItem.name,
           price: selectedItem.price,
-          quantity,
-          totalPrice: selectedItem.price * quantity,
-          addons,
+          quantity: 1,
+          totalPrice: totalPrice,
+          addons: selectedAddons.map((addon) => addon.name),
         })
       );
-      closeModal();
     }
+    closeModal();
   };
 
   return (
-    <div>
-      <h3
-        style={{
-          backgroundColor: "#D4593E",
-          color: "white",
-          padding: "20px",
-          textAlign: "center",
-          margin: "0px",
-        }}
-      >
-        {restaurant.name}
-      </h3>
-      <CategoryFilter
-        categories={categories}
-        activeCategory={activeCategory}
-        onCategoryChange={(category) => setActiveCategory(category)}
-      />
+    <Container>
+      <RestaurantHeader>
+        <img src={restaurant.imageurl} alt={restaurant.name} />
+        <h1>{restaurant.name}</h1>
+        <p>{restaurant.cuisine}</p>
+        <p className="working-hours">
+          Работно време: {restaurant.workinghours || "Не е достапно"}
+        </p>
+      </RestaurantHeader>
 
-      {/* Поле за пребарување */}
-      <SearchContainer>
-        <SearchInput
-          type="text"
-          placeholder="Пребарај производи..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+      <h2>Мени</h2>
+      <MenuGrid>
+        {menuItems.map((item) => (
+          <MenuItemCard key={item.id}>
+            <img src={item.imageurl} alt={item.name} />
+            <h3>{item.name}</h3>
+            <p className="price">Цена: {item.price} ден.</p>
+            <p>Категорија: {item.category}</p>
+            <p>Состојки: {item.ingredients.join(", ")}</p>
+            <button onClick={() => openModal(item)}>Додај во корпа</button>
+          </MenuItemCard>
+        ))}
+      </MenuGrid>
+
+      {selectedItem && (
+        <AddToCartModal
+          isOpen={modalOpen}
+          onClose={closeModal}
+          itemName={selectedItem.name}
+          addons={selectedItem.addons.map((addon) => ({
+            name: addon,
+            price: 50, // Пример цена за секој додаток, увери се дека е точно
+          }))}
+          onAddToCart={handleAddToCart}
         />
-      </SearchContainer>
-
-      {/* Прикажување на категориите и нивното мени */}
-      {categories.map(
-        (category) =>
-          filteredMenu.filter((item) => item.category === category).length >
-          0 ? ( // Проверка дали има елементи за оваа категорија
-            <div key={category}>
-              <CategoryHeader>{category}</CategoryHeader>
-              <MenuGrid>
-                {filteredMenu
-                  .filter((item) => item.category === category)
-                  .map((item) => (
-                    <MenuItemCard key={item.id}>
-                      <p
-                        style={{
-                          margin: "0px",
-                          fontWeight: "bold",
-                          textAlign: "center",
-                          padding: "10px 0",
-                        }}
-                      >
-                        {item.name}
-                      </p>
-                      <div
-                        style={{
-                          backgroundImage: `url(${item.image})`,
-                          backgroundSize: "cover",
-                          backgroundPosition: "center",
-                          height: "150px",
-                        }}
-                      />
-                      <div style={{ padding: "10px" }}>
-                        <p style={{ margin: 0, fontWeight: "bold" }}>
-                          Цена: {item.price} ден.
-                        </p>
-
-                        {/* Прикажување на состојките тука, во рамките на картата */}
-                        {item.ingredients && item.ingredients.length > 0 && (
-                          <p
-                            style={{
-                              fontSize: "14px",
-                              color: "#666",
-                              marginTop: "8px",
-                              textAlign: "center",
-                            }}
-                          >
-                            <strong>Состојки:</strong>{" "}
-                            {item.ingredients.join(", ")}
-                          </p>
-                        )}
-
-                        <button
-                          style={{
-                            backgroundColor: "#48BB78",
-                            color: "white",
-                            padding: "10px",
-                            border: "none",
-                            borderRadius: "5px",
-                            cursor: "pointer",
-                            width: "100%",
-                            marginTop: "12px",
-                          }}
-                          onClick={() => openModal(item)}
-                        >
-                          Додај во Корпа
-                        </button>
-                      </div>
-                    </MenuItemCard>
-                  ))}
-              </MenuGrid>
-            </div>
-          ) : null // Ако нема елементи, не прикажувај ја категоријата
       )}
-
-      <Modal
-        isOpen={modalIsOpen}
-        onRequestClose={closeModal}
-        style={{
-          overlay: {
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          },
-          content: {
-            position: "relative",
-            padding: "0",
-            border: "none",
-            inset: "auto",
-            background: "transparent",
-          },
-        }}
-      >
-        {selectedItem && (
-          <ModalContent>
-            <h3>{selectedItem.name}</h3>
-            <p>Цена: {selectedItem.price} ден.</p>
-
-            {/* Прикажи состојки */}
-            {selectedItem.ingredients &&
-              selectedItem.ingredients.length > 0 && (
-                <p>Состојки: {selectedItem.ingredients.join(", ")}</p>
-              )}
-
-            <label>
-              Количина:
-              <input
-                type="number"
-                value={quantity}
-                min="1"
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                style={{
-                  padding: "8px",
-                  fontSize: "16px",
-                  border: "1px solid #cbd5e0",
-                  borderRadius: "4px",
-                  width: "100%",
-                  marginBottom: "16px",
-                }}
-              />
-            </label>
-            <button
-              onClick={handleAddToCart}
-              style={{
-                backgroundColor: "#48BB78",
-                color: "white",
-                padding: "10px",
-                border: "none",
-                borderRadius: "5px",
-                cursor: "pointer",
-              }}
-            >
-              Додај во Корпа
-            </button>
-          </ModalContent>
-        )}
-      </Modal>
-    </div>
+    </Container>
   );
 };
 

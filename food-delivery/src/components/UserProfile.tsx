@@ -1,38 +1,72 @@
-import axios from "axios";
-import { useEffect, useState } from "react";
+// import React, { useState } from "react";
 
-// Дефинирај тип за корисничките податоци
-interface User {
-  name: string;
-  email: string;
-  phone: string;
-}
+// interface UserProfileProps {
+//   name: string;
+//   email: string;
+//   phone: string;
+// }
 
-const UserProfile = () => {
-  // Користиме User тип за state
-  const [user, setUser] = useState<User | null>(null);
+// const UserProfile: React.FC<UserProfileProps> = ({ name, email, phone }) => {
+//   const [isEditing, setIsEditing] = useState(false);
+//   const [userName, setUserName] = useState(name);
+//   const [userEmail, setUserEmail] = useState(email);
+//   const [userPhone, setUserPhone] = useState(phone);
 
-  useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/user/profile") // Патеката до твојот Express сервер
-      .then((response) => {
-        setUser(response.data); // Спремање на податоците од серверот
-      })
-      .catch((error) => {
-        console.error("There was an error fetching the user profile!", error);
-      });
-  }, []);
+//   const handleEditClick = () => {
+//     setIsEditing(true);
+//   };
 
-  if (!user) return <p>Loading...</p>;
+//   const handleSaveClick = () => {
+//     setIsEditing(false);
+//     // Here you can add logic to save the updated user information
+//   };
 
-  return (
-    <div>
-      <h1>Profile</h1>
-      <p>Name: {user.name}</p>
-      <p>Email: {user.email}</p>
-      <p>Phone: {user.phone}</p>
-    </div>
-  );
-};
+//   return (
+//     <div>
+//       {isEditing ? (
+//         <div>
+//           <div>
+//             <label>Name:</label>
+//             <input
+//               type="text"
+//               value={userName}
+//               onChange={(e) => setUserName(e.target.value)}
+//             />
+//           </div>
+//           <div>
+//             <label>Email:</label>
+//             <input
+//               type="email"
+//               value={userEmail}
+//               onChange={(e) => setUserEmail(e.target.value)}
+//             />
+//           </div>
+//           <div>
+//             <label>Phone:</label>
+//             <input
+//               type="tel"
+//               value={userPhone}
+//               onChange={(e) => setUserPhone(e.target.value)}
+//             />
+//           </div>
+//           <button onClick={handleSaveClick}>Save</button>
+//         </div>
+//       ) : (
+//         <div>
+//           <div>
+//             <strong>Name:</strong> {userName}
+//           </div>
+//           <div>
+//             <strong>Email:</strong> {userEmail}
+//           </div>
+//           <div>
+//             <strong>Phone:</strong> {userPhone}
+//           </div>
+//           <button onClick={handleEditClick}>Edit</button>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
 
-export default UserProfile;
+// export default UserProfile;

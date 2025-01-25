@@ -1,5 +1,5 @@
 {
-  "name": "my-backend",
+  "name": "backend",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -10,6 +10,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "express": "^4.21.2"
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1"
   }
 }

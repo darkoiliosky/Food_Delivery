@@ -1,225 +1,107 @@
-import { Link } from "react-router-dom";
+import React from "react";
 import styled from "styled-components";
-import { FaClock, FaTruck } from "react-icons/fa";
-import { parse, format, isWithinInterval } from "date-fns";
-
-// Функција за проверка дали ресторанот е отворен
-const isRestaurantOpen = (workingHours: string): boolean => {
-  const [openTime, closeTime] = workingHours.split(" - ");
-  const now = new Date();
-
-  const currentTime = parse(format(now, "HH:mm"), "HH:mm", new Date());
-  const open = parse(openTime, "HH:mm", new Date());
-  const close = parse(closeTime, "HH:mm", new Date());
-
-  // Ако времето на затворање е помало од времето на отворање, значи ресторанот работи преку полноќ
-  const interval =
-    close < open
-      ? { start: open, end: parse("23:59", "HH:mm", new Date()) }
-      : { start: open, end: close };
-
-  return isWithinInterval(currentTime, interval);
-};
-const StyledCard = styled.div`
-  background-color: #f0f8ff;
-  border-radius: 15px;
-  /* padding: 16px; */
-  transition: transform 0.3s, box-shadow 0.3s;
-  border: 1px solid #eaeaea;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-  width: calc(25% - 20px);
-  cursor: pointer;
-  height: 460px;
-
-  &:hover {
-    transform: scale(1.05);
-    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
-  }
-
-  .image-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 10px;
-
-    img {
-      width: 90%; /* Приспособена ширина */
-      height: 180px;
-      object-fit: cover;
-      border-radius: 10px;
-    }
-  }
-
-  .working-hours {
-    background-color: #f9f9f9;
-    padding: 10px;
-    border-radius: 10px;
-    font-size: 14px;
-    color: #555555;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    .icon {
-      margin-right: 8px;
-      color: #3498db;
-    }
-  }
-
-  h2 {
-    font-size: 18px;
-    font-weight: bold;
-    color: #333333;
-    margin: 10px 0;
-    text-align: center; /* Центриран текст */
-  }
-
-  .times-wrap {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-
-    .wrap-time,
-    .wrap-delivery {
-      display: flex;
-      align-items: center;
-      font-size: 14px;
-      color: #7d7d7d;
-
-      .icon {
-        margin-right: 8px;
-        color: #3498db;
-      }
-    }
-  }
-
-  p {
-    font-size: 14px;
-    color: #555555;
-    margin-bottom: 15px;
-    text-align: center; /* Центриран текст */
-  }
-
-  hr {
-    width: 100%;
-    margin: 10px 0;
-    border: none;
-    border-top: 1px solid #eaeaea;
-  }
-
-  a {
-    display: inline-block;
-    font-size: 14px;
-    text-decoration: none;
-    color: #1abc9c;
-    font-weight: bold;
-    transition: color 0.3s;
-
-    &:hover {
-      color: #16a085;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    width: calc(33.33% - 20px);
-  }
-
-  @media (max-width: 768px) {
-    width: calc(50% - 20px);
-  }
-
-  @media (max-width: 480px) {
-    width: calc(100% - 20px);
-  }
-`;
-
-const CardContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  max-width: 2000px;
-  margin: auto;
-  justify-content: space-evenly; /* Подеднакво растојание меѓу картичките */
-  padding: 20px;
-  /* height: 460px; */
-
-  @media (max-width: 768px) {
-    gap: 15px;
-    padding: 10px;
-  }
-`;
+import { Link } from "react-router-dom"; // Додади Link од React Router
 
 interface Restaurant {
   id: number;
   name: string;
   cuisine: string;
-  imageUrl: string;
-  workingHours: string; // Додадено поле за работно време
+  imageurl: string; // Останува imageurl од backend
+  workingHours: string;
 }
 
 interface RestaurantListProps {
   restaurants: Restaurant[];
 }
 
+const RestaurantGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+  padding: 20px;
+  background-color: #f9f9f9;
+`;
+
+const RestaurantCard = styled.div`
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s, box-shadow 0.3s;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+  }
+
+  img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+  }
+
+  h3 {
+    font-size: 1.2rem;
+    color: #333;
+    margin: 10px 15px;
+  }
+
+  p {
+    margin: 5px 15px;
+    font-size: 0.9rem;
+    color: #666;
+  }
+
+  .working-hours {
+    font-weight: bold;
+    color: #3498db;
+  }
+
+  .details-button {
+    display: block;
+    width: 100%;
+    text-align: center;
+    margin: 15px 0;
+    padding: 10px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+
+    &:hover {
+      background-color: #2980b9;
+    }
+  }
+`;
+
 const RestaurantList: React.FC<RestaurantListProps> = ({ restaurants }) => {
   return (
-    <CardContainer>
-      {restaurants.map((restaurant) => {
-        const isOpen = isRestaurantOpen(restaurant.workingHours);
-
-        return (
-          <StyledCard key={restaurant.id}>
-            <h2
-              style={{
-                backgroundColor: "#F9F9F9",
-                margin: "0px",
-                paddingBottom: "8px",
-                fontSize: "25px",
-                // color: "gray",
-              }}
-            >
-              {restaurant.name}
-            </h2>
-
+    <RestaurantGrid>
+      {restaurants.length > 0 ? (
+        restaurants.map((restaurant) => (
+          <RestaurantCard key={restaurant.id}>
+            <img src={restaurant.imageurl} alt={restaurant.name} />
+            <h3>{restaurant.name}</h3>
+            <p>{restaurant.cuisine}</p>
+            <p className="working-hours">{restaurant.workingHours}</p>
             <Link
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                backgroundColor: "#F9F9F9",
-              }}
-              to={`/restaurants/${restaurant.id}`}
+              to={`/restaurants/${restaurant.id}`} // Линкот за детали
+              className="details-button"
             >
-              <img
-                src={restaurant.imageUrl}
-                alt={restaurant.name}
-                style={{ width: "300px", height: "250px" }}
-              />
+              Повеќе детали
             </Link>
-            <div className="working-hours">
-              <FaClock
-                className="icon"
-                style={{ color: isOpen ? "#34db5e" : "red" }} // Сина ако е отворено, црвена ако е затворено
-              />
-              {restaurant.workingHours}
-            </div>
-            <div className="times-wrap">
-              <div className="wrap-time">
-                <FaClock className="icon" style={{ fontSize: "25px" }} /> 15-30
-                мин.
-              </div>
-              <div className="wrap-delivery">
-                <FaTruck className="icon" style={{ fontSize: "25px" }} /> 90
-                ден.
-              </div>
-            </div>
-            <p style={{ fontSize: "19px" }}>{restaurant.cuisine}</p>
-            <hr />
-            <Link to={`/restaurants/${restaurant.id}`}>Повеќе детали</Link>
-          </StyledCard>
-        );
-      })}
-    </CardContainer>
+          </RestaurantCard>
+        ))
+      ) : (
+        <p>Нема резултати за прикажување.</p>
+      )}
+    </RestaurantGrid>
   );
 };
 

@@ -1,7 +1,8 @@
 import React from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHome, FaShoppingCart, FaUser } from "react-icons/fa"; // Додадено и FaUser за икона на профилот
+import { FaHome, FaShoppingCart, FaUser } from "react-icons/fa"; // Импортирај FaUser
+import { useAuth } from "../context/AuthContext"; // Импортирај го AuthContext
 
 // Стилови за Navbar
 const NavbarContainer = styled.nav`
@@ -31,7 +32,7 @@ const NavLinks = styled.div`
   }
 `;
 
-const StyledLink = styled(Link)<{ to: string }>`
+const StyledLink = styled(Link)`
   text-decoration: none;
   color: #fff;
   font-size: 16px;
@@ -64,10 +65,11 @@ const Button = styled.button`
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate(); // Користење на useNavigate
+  const { isLoggedIn, setIsLoggedIn } = useAuth(); // Користење на AuthContext
 
-  // Функција за отварање на страницата за регистрација
-  const handleOpenRegistration = () => {
-    navigate("/register"); // Пренасочување на /register
+  const handleLogout = () => {
+    setIsLoggedIn(false); // Одјави го корисникот
+    navigate("/login");
   };
 
   return (
@@ -82,15 +84,16 @@ const Navbar: React.FC = () => {
           <FaShoppingCart />
           Корпа
         </StyledLink>
-        {/* Линк за профил */}
-        <StyledLink to="/profile" style={{ fontSize: "20px" }}>
-          <FaUser />
-          Профил
-        </StyledLink>
       </NavLinks>
 
-      {/* Копче за регистрација */}
-      <Button onClick={handleOpenRegistration}>Најави се</Button>
+      {/* Десен дел */}
+      {isLoggedIn ? (
+        <Button onClick={handleLogout}>
+          <FaUser /> Одјави се
+        </Button>
+      ) : (
+        <Button onClick={() => navigate("/login")}>Најави се</Button>
+      )}
     </NavbarContainer>
   );
 };
