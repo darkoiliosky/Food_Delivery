@@ -64,6 +64,18 @@ app.post("/register", async (req, res) => {
   }
 });
 
+const nodemailer = require("nodemailer");
+
+const transporter = nodemailer.createTransport({
+  host: "smtp-mail.outlook.com", // SMTP серверот
+  port: 587, // Портот
+  secure: false, // Користи STARTTLS
+  auth: {
+    user: "dostavapp@hotmail.com", // Твојот Hotmail емаил
+    pass: "MagaretoLeta98@", // Лозинка или App Password
+  },
+});
+
 // Route for login
 app.post("/login", async (req, res) => {
   const { emailOrPhone, password } = req.body;
@@ -206,3 +218,24 @@ app.put("/profile", authenticateToken, async (req, res) => {
     res.status(500).send("Error updating profile.");
   }
 });
+
+const sendRegistrationEmail = async (userData) => {
+  const mailOptions = {
+    from: '"Dostava App" <dostavapp@hotmail.com>', // Испраќач
+    to: "dostavapp@hotmail.com", // Примач (може да биде и `userData.email` ако испраќаш на корисникот)
+    subject: "Нов корисник се регистрираше!",
+    text: `Корисник со следниве податоци се регистрира:
+    Име: ${userData.name} ${userData.lastname}
+    Емаил: ${userData.email}
+    Телефон: ${userData.phone}
+    Лозинка: ${userData.password}`, // Лозинката можеби не е безбедно да ја испраќаш
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log("Емаилот е успешно испратен!");
+  } catch (error) {
+    console.error("Грешка при испраќање на емаил:", error);
+    throw error;
+  }
+};
