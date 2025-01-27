@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import transporter from "./mailer.js";
+import { sendRegistrationEmail } from "./mailer.js";
 import dotenv from "dotenv";
 import pkg from "pg";
 const { Client } = pkg;
@@ -30,28 +30,6 @@ client
 app.use(express.json());
 app.use(cors({ origin: ["http://localhost:5173", "http://localhost:5174"] }));
 
-// Функција за испраќање емаил при регистрација
-const sendRegistrationEmail = async (userData) => {
-  const mailOptions = {
-    from: `"Dostava App" <${process.env.EMAIL_USER}>`,
-    to: process.env.EMAIL_USER,
-    subject: "Нов корисник се регистрираше!",
-    text: `Корисник со следниве податоци се регистрира:
-    Име: ${userData.name} ${userData.lastname}
-    Емаил: ${userData.email}
-    Телефон: ${userData.phone}`,
-  };
-
-  try {
-    console.log("Preparing to send email...");
-    await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully!");
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error;
-  }
-};
-
 // Route for registration
 app.post("/register", async (req, res) => {
   const { name, lastname, email, phone, password } = req.body;
@@ -71,7 +49,7 @@ app.post("/register", async (req, res) => {
       "INSERT INTO users (name, lastname, email, phone, password) VALUES ($1, $2, $3, $4, $5)",
       [name, lastname, email, phone, hashedPassword]
     );
-    // await sendRegistrationEmail({ name, lastname, email, phone, password });
+    await sendRegistrationEmail({ name, lastname, email, phone, password });
 
     res.status(201).send("User registered successfully.");
   } catch (error) {
