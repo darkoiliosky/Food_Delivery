@@ -56,31 +56,31 @@ const sendRegistrationEmail = async (userData) => {
 app.post("/register", async (req, res) => {
   const { name, lastname, email, phone, password } = req.body;
 
-  console.log("Received data:", { name, lastname, email, phone, password });
+  console.log("Received data:", { name, lastname, email, phone, password }); // Додај лог
 
   if (!name || !lastname || !email || !phone || !password) {
     return res.status(400).send("All fields are required.");
   }
 
   try {
-    console.log("Hashing password...");
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    console.log("Inserting user into database...");
+    console.log("Hashed Password:", hashedPassword); // Логирај хашираната лозинка
+
     await client.query(
       "INSERT INTO users (name, lastname, email, phone, password) VALUES ($1, $2, $3, $4, $5)",
       [name, lastname, email, phone, hashedPassword]
     );
-
-    console.log("Calling sendRegistrationEmail...");
-    await sendRegistrationEmail({ name, lastname, email, phone, password });
+    // await sendRegistrationEmail({ name, lastname, email, phone, password });
 
     res.status(201).send("User registered successfully.");
   } catch (error) {
-    console.error("Error during registration process:", error);
+    console.error("Error registering user:", error);
+
     if (error.code === "23505") {
       return res.status(400).send("Email or phone already exists.");
     }
+
     res.status(500).send("Error registering user.");
   }
 });
@@ -178,9 +178,6 @@ app.get("/profile", authenticateToken, async (req, res) => {
   }
 });
 
-// Route за добивање на мени за одреден ресторан
-// Route to get menu items for a specific restaurant
-// Route to get menu items for a specific restaurant
 app.get("/restaurants/:id/menu", async (req, res) => {
   const restaurantId = req.params.id;
 
