@@ -1,35 +1,25 @@
 import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 
-// Конфигурација на транспортер
+dotenv.config();
+
 const transporter = nodemailer.createTransport({
-  host: "smtp.office365.com", // SMTP сервер за Hotmail/Outlook
-  port: 587, // Порт за TLS
-  secure: false, // TLS е препорачливо, па постави го на false
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: process.env.EMAIL_SECURE === "true", // Претвори го "false" во логичка вредност
   auth: {
-    user: "dostavapp@hotmail.com", // Твојот Hotmail емаил
-    pass: "MagaretoLeta98@", // Лозинката за твојот Hotmail акаунт
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
-// Функција за испраќање емаил
-const sendRegistrationEmail = async (userData) => {
-  const mailOptions = {
-    from: '"Dostava App" <dostavapp@hotmail.com>',
-    to: "dostavapp@hotmail.com",
-    subject: "Нов корисник се регистрираше!",
-    text: `Корисник со следниве податоци се регистрира:
-    Име: ${userData.name} ${userData.lastname}
-    Емаил: ${userData.email}
-    Телефон: ${userData.phone}
-    Лозинка: ${userData.password}`,
-  };
-
-  try {
-    console.log("Preparing to send email...");
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.response);
-  } catch (error) {
-    console.error("Email sending error:", error);
-    throw error; // Повтори ја грешката за да знаеме дека се појавува овде
+// Проверка на SMTP конекцијата
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("SMTP Error: ", error);
+  } else {
+    console.log("SMTP Server is ready to take messages.");
   }
-};
+});
+
+export default transporter;
