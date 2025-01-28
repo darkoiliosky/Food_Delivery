@@ -79,7 +79,6 @@ const FilterHeader: React.FC<HeaderProps> = ({
     const matchesSearch = restaurant.name
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
-
     return matchesFilter && matchesSearch;
   });
 
