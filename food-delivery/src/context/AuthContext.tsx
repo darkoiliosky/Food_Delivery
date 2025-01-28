@@ -1,3 +1,4 @@
+// AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
@@ -55,16 +56,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const response = await axios.post<LoginResponse>(
         "http://localhost:5000/login",
-        { emailOrPhone, password }
+        { emailOrPhone, password },
+        { withCredentials: true } // Додај го ова за да дозволиш cookies
       );
+
       const { token, user } = response.data;
 
-      // Запишувај ги токенот и податоците за корисникот во localStorage
+      console.log("Token received from backend:", token); // DEBUG
+      console.log("User received:", user); // DEBUG
+
+      if (!token) {
+        throw new Error("Token not received from server.");
+      }
+
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
 
       setUser(user);
-      setIsLoggedIn(true); // Постави статус на најавен
+      setIsLoggedIn(true);
     } catch (error) {
       console.error("Login error:", error);
       throw new Error("Неуспешна најава. Проверете ги податоците.");

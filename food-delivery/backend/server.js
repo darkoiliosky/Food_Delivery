@@ -1,3 +1,4 @@
+// server.js
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcrypt";
@@ -105,54 +106,59 @@ app.post("/register", async (req, res) => {
 app.post("/login", async (req, res) => {
   const { emailOrPhone, password } = req.body;
 
-  // 1) Валидација на полињата
   if (!emailOrPhone || !password) {
     return res.status(400).send("All fields are required.");
   }
 
   try {
-    // 2) Бараме корисник според емаил или телефон
     const result = await client.query(
       "SELECT * FROM users WHERE email = $1 OR phone = $1",
       [emailOrPhone]
     );
     if (result.rows.length === 0) {
-      // Корисник не е најден (status 404)
       return res.status(404).send("User not found.");
     }
 
     const user = result.rows[0];
 
-    // 3) Проверка на лозинка
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      // Лозинка не е точна (status 401)
       return res.status(401).send("Invalid password.");
     }
 
-    // 4) Проверка дали корисникот е верификуван
     if (!user.is_verified) {
-      // Корисникот не ја потврдил е-поштата (status 403)
       return res.status(403).send("Please verify your email first.");
     }
 
-    // 5) Генерирај JWT (важи 1 час)
+    // Генерирање на токен
     const token = jwt.sign(
       { id: user.id, email: user.email },
       process.env.JWT_SECRET || "default_secret_key",
       { expiresIn: "1h" }
     );
 
-    // 6) Запишете го токенот во HTTPOnly cookie
+    console.log("Generated Token:", token); // DEBUG: Проверка на серверот
+
+    // Испрати го токенот како cookie
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 60 * 60 * 1000, // 1 час
-      sameSite: "none", // важно за cross-site (React localhost:5173 → Node localhost:5000)
-      secure: false, // за http://localhost (true ако е https)
+      sameSite: "None",
+      secure: true, // Ова мора да биде `true` ако користиш HTTPS
     });
 
-    // 7) Испратете успешен одговор
-    return res.json({ message: "Login successful. Cookie is set." });
+    // Врати ги податоците и токенот
+    return res.json({
+      message: "Login successful.",
+      token, // Додај токен во JSON одговорот
+      user: {
+        id: user.id,
+        name: user.name,
+        lastname: user.lastname,
+        email: user.email,
+        phone: user.phone,
+      },
+    });
   } catch (error) {
     console.error("Error logging in user:", error);
     return res.status(500).send("Error logging in user.");
