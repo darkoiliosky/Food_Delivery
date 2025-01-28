@@ -188,6 +188,35 @@ const authenticateToken = (req, res, next) => {
     }
   );
 };
+app.get("/restaurants", async (req, res) => {
+  try {
+    const result = await client.query("SELECT * FROM restaurants");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching restaurants:", error);
+    res.status(500).send("Error fetching restaurants");
+  }
+});
+// Route: Fetch menu for a specific restaurant
+app.get("/restaurants/:id/menu", async (req, res) => {
+  const restaurantId = req.params.id;
+
+  try {
+    const result = await client.query(
+      "SELECT * FROM menu_items WHERE restaurant_id = $1",
+      [restaurantId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send("No menu items found for this restaurant.");
+    }
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching menu items:", error);
+    res.status(500).send("Error fetching menu items");
+  }
+});
 
 // Route: profile
 app.get("/profile", authenticateToken, async (req, res) => {
