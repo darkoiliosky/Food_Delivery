@@ -3,8 +3,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
 interface User {
-  firstName: string;
-  lastName: string;
+  name: string;
+  lastname: string;
   email: string;
   phone?: string;
   dob?: string;

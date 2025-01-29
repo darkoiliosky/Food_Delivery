@@ -1,3 +1,4 @@
+// Login
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
@@ -115,6 +116,14 @@ const Login: React.FC = () => {
           Don't have an account?{" "}
           <Link to="/register" style={{ color: "#3498db", fontWeight: "bold" }}>
             Register here
+          </Link>
+        </p>
+        <p style={{ textAlign: "center", marginTop: "1rem" }}>
+          <Link
+            to="/forgot-password"
+            style={{ color: "#3498db", fontWeight: "bold" }}
+          >
+            Forgot Password?
           </Link>
         </p>
       </FormWrapper>

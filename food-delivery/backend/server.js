@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import pkg from "pg";
 const { Client } = pkg;
 import crypto from "crypto"; // или import { v4 as uuidv4 } from 'uuid';
+import { sendResetPasswordEmail } from "./mailer.js";
 
 dotenv.config();
 
@@ -298,6 +299,104 @@ app.get("/verify", async (req, res) => {
     res.send("Вашата е-пошта е успешно потврдена! Сега можете да се најавите.");
   } catch (error) {
     console.error("Error verifying email:", error);
+    res.status(500).send("Internal server error.");
+  }
+});
+
+app.post("/forgot-password", async (req, res) => {
+  console.log("Vleze vo forgot password");
+  const { emailOrPhone } = req.body;
+  console.log("🚀 Received forgot password request for:", emailOrPhone); // DEBUG 1
+
+  if (!emailOrPhone) {
+    console.log("⚠️ Missing email or phone input!"); // DEBUG 2
+    return res.status(400).send("Email or phone is required.");
+  }
+
+  try {
+    // Проверка дали корисникот постои
+    const result = await client.query(
+      "SELECT * FROM users WHERE email = $1 OR phone = $1",
+      [emailOrPhone]
+    );
+
+    console.log("🛠 Database query result:", result.rows); // DEBUG 3
+
+    if (result.rows.length === 0) {
+      console.log("❌ User not found in database"); // DEBUG 4
+      return res.status(404).send("User not found.");
+    }
+
+    const user = result.rows[0];
+    console.log("✅ Found user:", user); // DEBUG 5
+
+    // Генерирај токен за ресетирање на лозинка
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // Валидност: 1 час
+
+    console.log("🔑 Generated reset token:", resetToken); // DEBUG 6
+
+    await client.query(
+      "UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3",
+      [resetToken, resetExpires, user.id]
+    );
+
+    console.log("📩 Reset token saved in database for user:", user.email); // DEBUG 7
+
+    const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
+    console.log("🔗 Reset link:", resetLink); // DEBUG 8
+
+    // Испраќање на емаил со ресет линкот
+    await sendResetPasswordEmail(user.email, resetLink);
+
+    console.log("✅ Reset email sent successfully!"); // DEBUG 9
+    res.send("Reset link sent to your email.");
+  } catch (error) {
+    console.error("🔥 Error:", error);
+    res.status(500).send("Internal server error.");
+  }
+});
+
+app.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  console.log("🔑 Received reset token:", token); // DEBUG 1
+  console.log("🔒 New password:", password); // DEBUG 2
+
+  if (!token || !password) {
+    console.log("⚠️ Missing token or password!"); // DEBUG 3
+    return res.status(400).send("Token and new password are required.");
+  }
+
+  try {
+    // Проверка дали токенот постои и не е истечен
+    const result = await client.query(
+      "SELECT * FROM users WHERE reset_token = $1 AND reset_expires > NOW()",
+      [token]
+    );
+
+    console.log("🛠 Token search result:", result.rows); // DEBUG 4
+
+    if (result.rows.length === 0) {
+      console.log("❌ Invalid or expired token"); // DEBUG 5
+      return res.status(400).send("Invalid or expired token.");
+    }
+
+    const user = result.rows[0];
+
+    // Хаширај ја новата лозинка
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log("🔑 Hashed new password:", hashedPassword); // DEBUG 6
+
+    // Ажурирај ја лозинката во базата и избриши го токенот
+    await client.query(
+      "UPDATE users SET password = $1, reset_token = NULL, reset_expires = NULL WHERE id = $2",
+      [hashedPassword, user.id]
+    );
+
+    console.log("✅ Password reset successful for user:", user.email); // DEBUG 7
+    res.send("Password reset successful.");
+  } catch (error) {
+    console.error("🔥 Error resetting password:", error);
     res.status(500).send("Internal server error.");
   }
 });

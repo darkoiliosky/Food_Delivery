@@ -1,3 +1,4 @@
+// Profile
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { useAuth } from "../../context/AuthContext"; // Користи го AuthContext
@@ -93,15 +94,15 @@ const Profile: React.FC = () => {
   useEffect(() => {
     const fetchUserProfile = async () => {
       const token = localStorage.getItem("token");
+      console.log("Token:", token);
       if (token) {
         try {
-          // Додаден тип UserProfile на одговорот
+          console.log("Fetching user profile...");
+          // Поправено: Додадено withCredentials: true
           const response = await axios.get<UserProfile>(
-            "http://localhost:5000/profile",
+            "http://localhost:5000/profile/",
             {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              withCredentials: true, // Ова овозможува испраќање на cookies
             }
           );
 
@@ -111,7 +112,7 @@ const Profile: React.FC = () => {
             lastName: response.data.lastname || "",
             email: response.data.email || "",
             phone: response.data.phone || "",
-            password: "", // Лозинката ќе остане празна
+            password: "", // Лозинката останува празна
           });
         } catch (error) {
           console.error("Error fetching profile:", error);

@@ -58,7 +58,9 @@ const Navbar: React.FC = () => {
     logout();
     navigate("/login");
   };
-
+  if (isLoggedIn) {
+    console.log(user);
+  }
   return (
     <NavbarContainer>
       <NavLinks>
@@ -72,7 +74,7 @@ const Navbar: React.FC = () => {
       {isLoggedIn ? (
         <>
           <StyledLink to="/profile">
-            <FaUser /> {user?.firstName || "Profile"}
+            <FaUser /> {user?.name || "Profile"}
           </StyledLink>
           <Button onClick={handleLogout}>Logout</Button>
         </>

@@ -61,3 +61,30 @@ ${userData.verifyURL}
     console.error("Error sending verification email:", error);
   }
 }
+
+export async function sendResetPasswordEmail(email, resetLink) {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "dostavapp@gmail.com",
+        pass: "jvqdarpxhbxeelwd",
+      },
+    });
+
+    const mailOptions = {
+      from: `"Dostava App" <dostavapp@gmail.com>`,
+      to: email,
+      subject: "Reset Your Password",
+      text: `Click the link below to reset your password:
+      ${resetLink}
+      
+      This link is valid for 1 hour.`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log("Password reset email sent.");
+  } catch (error) {
+    console.error("Error sending reset password email:", error);
+  }
+}

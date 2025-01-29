@@ -1,3 +1,4 @@
+// Store.ts
 import { configureStore } from "@reduxjs/toolkit";
 import { useDispatch, useSelector, TypedUseSelectorHook } from "react-redux"; // Додади увоз на потребните hook-ови
 import cartReducer from "./cartSlice";
