@@ -15,6 +15,8 @@ import Login from "./components/announcement/Login";
 import { Restaurant } from "./types";
 import ResetPassword from "./components/announcement/ResetPassword";
 import ForgotPassword from "./components/announcement/ForgotPassword";
+import ConfirmChanges from "./pages/ConfirmChanges";
+
 const App: React.FC = () => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]); // Типизирана состојба
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,7 @@ const App: React.FC = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/confirm-changes" element={<ConfirmChanges />} />
           </Routes>
           <MainFooter />
         </Router>

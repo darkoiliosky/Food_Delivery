@@ -88,3 +88,25 @@ export async function sendResetPasswordEmail(email, resetLink) {
     console.error("Error sending reset password email:", error);
   }
 }
+
+export async function sendVerificationEmail(email, confirmURL) {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: "dostavapp@gmail.com",
+      pass: "jvqdarpxhbxeelwd",
+    },
+  });
+
+  const mailOptions = {
+    from: `"Dostava App" <dostavapp@gmail.com>`,
+    to: email,
+    subject: "Confirm Profile Changes",
+    text: `Кликнете на следниов линк за да ги потврдите измените:
+${confirmURL}
+
+Доколку не сте ги направиле овие измени, игнорирајте го овој емаил.`,
+  };
+
+  await transporter.sendMail(mailOptions);
+}

@@ -10,6 +10,7 @@ import pkg from "pg";
 const { Client } = pkg;
 import crypto from "crypto"; // или import { v4 as uuidv4 } from 'uuid';
 import { sendResetPasswordEmail } from "./mailer.js";
+import { sendVerificationEmail } from "./mailer.js";
 
 dotenv.config();
 
@@ -183,21 +184,25 @@ app.get("/restaurants", async (req, res) => {
 // Middleware за проверка на токен (JWT)
 // -----------------------------------------------------------------------------
 const authenticateToken = (req, res, next) => {
-  // 1) Прочитај токен од cookies
-  const token = req.cookies?.token;
+  const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
+
+  console.log("Received Token:", token); // Додај ова за дебагирање
 
   if (!token) {
-    return res.status(401).send("Access Denied. No token provided.");
+    return res
+      .status(401)
+      .json({ message: "Access Denied. No token provided." });
   }
 
-  // 2) Валидација на JWT
   jwt.verify(
     token,
     process.env.JWT_SECRET || "default_secret_key",
     (err, user) => {
       if (err) {
-        return res.status(403).send("Invalid Token");
+        console.error("Token verification failed:", err);
+        return res.status(403).json({ message: "Invalid Token" });
       }
+      console.log("Decoded User:", user); // Додај ова за да провериш дали user.id постои
       req.user = user;
       next();
     }
@@ -397,6 +402,87 @@ app.post("/reset-password", async (req, res) => {
     res.send("Password reset successful.");
   } catch (error) {
     console.error("🔥 Error resetting password:", error);
+    res.status(500).send("Internal server error.");
+  }
+});
+// profile/update-request
+app.post("/profile/update-request", authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const { firstName, lastName, email, phone } = req.body;
+
+  try {
+    const confirmToken = crypto.randomBytes(32).toString("hex");
+
+    await client.query(
+      "UPDATE users SET pending_changes = $1, confirm_token = $2 WHERE id = $3",
+      [
+        JSON.stringify({ firstName, lastName, email, phone }),
+        confirmToken,
+        userId,
+      ]
+    );
+
+    const confirmURL = `http://localhost:5173/confirm-changes?token=${confirmToken}`;
+
+    await sendVerificationEmail(email, confirmURL);
+
+    res.send("Пратена е потврда на вашиот емаил.");
+  } catch (error) {
+    console.error("Error processing update request:", error);
+    res.status(500).send("Internal server error.");
+  }
+});
+
+// profile/confirm-changes
+app.get("/profile/confirm-changes", async (req, res) => {
+  const { token } = req.query;
+  console.log("Received confirmation request. Token:", token);
+
+  if (!token) {
+    console.error("Missing token in request.");
+    return res.status(400).send("Недостасува токен.");
+  }
+
+  try {
+    // Проверуваме дали токенот постои во базата
+    const result = await client.query(
+      "SELECT * FROM users WHERE confirm_token = $1",
+      [token]
+    );
+
+    console.log("Database query result:", result.rows);
+
+    if (result.rows.length === 0) {
+      console.error("Invalid or expired token.");
+      return res.status(400).send("Невалиден или истечен токен!");
+    }
+
+    const user = result.rows[0];
+
+    // Проверка дали pending_changes е веќе JSON објект
+    const pendingChanges =
+      typeof user.pending_changes === "string"
+        ? JSON.parse(user.pending_changes)
+        : user.pending_changes;
+
+    console.log("User pending changes:", pendingChanges);
+
+    // Ажурирање на корисничките податоци
+    await client.query(
+      "UPDATE users SET name = $1, lastname = $2, email = $3, phone = $4, pending_changes = NULL, confirm_token = NULL WHERE id = $5",
+      [
+        pendingChanges.firstName,
+        pendingChanges.lastName,
+        pendingChanges.email,
+        pendingChanges.phone,
+        user.id,
+      ]
+    );
+
+    console.log("User profile updated successfully.");
+    res.send("Вашите податоци се успешно ажурирани!");
+  } catch (error) {
+    console.error("Error confirming changes:", error);
     res.status(500).send("Internal server error.");
   }
 });

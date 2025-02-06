@@ -133,24 +133,24 @@ const Profile: React.FC = () => {
     e.preventDefault();
 
     try {
-      const response = await axios.put(
-        "http://localhost:5000/profile", // Ажурирај ја патеката ако треба
+      const response = await axios.post(
+        "http://localhost:5000/profile/update-request",
         formData,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`, // Додај токен
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
         }
       );
 
       if (response.status === 200) {
-        setMessage("Вашите податоци се успешно ажурирани!");
+        setMessage("Испратен е емаил за потврда на измените!");
       } else {
-        setMessage("Настана грешка при ажурирањето.");
+        setMessage("Настана грешка.");
       }
     } catch (error) {
-      console.error("Error updating profile:", error);
-      setMessage("Настана грешка при ажурирањето.");
+      console.error("Error sending update request:", error);
+      setMessage("Настана грешка.");
     }
   };
 
