@@ -10,7 +10,7 @@ interface MenuItem {
   id: number;
   name: string;
   price: number;
-  imageurl: string;
+  image_url: string;
   category: string;
   ingredients: string[];
   addons: string[];
@@ -20,8 +20,8 @@ interface Restaurant {
   id: number;
   name: string;
   cuisine: string;
-  imageurl: string;
-  workinghours: string;
+  image_url: string;
+  working_hours: string;
 }
 
 interface RestaurantDetailsProps {
@@ -197,11 +197,11 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   return (
     <Container>
       <RestaurantHeader>
-        <img src={restaurant.imageurl} alt={restaurant.name} />
+        <img src={restaurant.image_url} alt={restaurant.name} />
         <h1>{restaurant.name}</h1>
         <p>{restaurant.cuisine}</p>
         <p className="working-hours">
-          Работно време: {restaurant.workinghours || "Не е достапно"}
+          Работно време: {restaurant.working_hours || "Не е достапно"}
         </p>
       </RestaurantHeader>
 
@@ -209,7 +209,7 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
       <MenuGrid>
         {menuItems.map((item) => (
           <MenuItemCard key={item.id}>
-            <img src={item.imageurl} alt={item.name} />
+            <img src={item.image_url} alt={item.name} />
             <h3>{item.name}</h3>
             <p className="price">Цена: {item.price} ден.</p>
             <p>Категорија: {item.category}</p>

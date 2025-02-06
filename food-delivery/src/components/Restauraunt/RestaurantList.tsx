@@ -6,8 +6,8 @@ interface Restaurant {
   id: number;
   name: string;
   cuisine: string;
-  imageurl: string; // Останува imageurl од backend
-  workingHours: string;
+  image_url: string; // Останува image_url од backend
+  working_hours: string;
 }
 
 interface RestaurantListProps {
@@ -86,10 +86,10 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ restaurants }) => {
       {restaurants.length > 0 ? (
         restaurants.map((restaurant) => (
           <RestaurantCard key={restaurant.id}>
-            <img src={restaurant.imageurl} alt={restaurant.name} />
+            <img src={restaurant.image_url} alt={restaurant.name} />
             <h3>{restaurant.name}</h3>
             <p>{restaurant.cuisine}</p>
-            <p className="working-hours">{restaurant.workingHours}</p>
+            <p className="working-hours">{restaurant.working_hours}</p>
             <Link
               to={`/restaurants/${restaurant.id}`} // Линкот за детали
               className="details-button"
