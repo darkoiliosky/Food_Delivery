@@ -16,6 +16,8 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import e from "express";
+import { env } from "process";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -62,6 +64,17 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+const { Pool } = pkg;
+
+// ✅ Конекција со PostgreSQL
+const pool = new Pool({
+  user: env.DB_USER,
+  host: env.DB_HOST,
+  database: env.DB_NAME,
+  password: env.DB_PASSWORD,
+  port: env.DB_PORT, // Стандардниот порт за PostgreSQL
+});
+export default pool;
 
 // -----------------------------------------------------------------------------
 // Route: registerexpr
@@ -505,16 +518,19 @@ app.delete(
       // Ако постои слика, избриши ја од серверот
       if (imageUrl) {
         const imagePath = path.join(__dirname, "public", imageUrl);
+
         fs.unlink(imagePath, (err) => {
           if (err) {
-            console.error("Error deleting image:", err);
+            console.error("❌ Error deleting image:", err);
+          } else {
+            console.log("✅ Image deleted successfully:", imagePath);
           }
         });
       }
 
       res.json({ message: "Restaurant deleted successfully." });
     } catch (error) {
-      console.error("Error deleting restaurant:", error);
+      console.error("❌ Error deleting restaurant:", error);
       res.status(500).json({ message: "Error deleting restaurant." });
     }
   }
@@ -526,58 +542,87 @@ app.post(
   authenticateAdmin,
   upload.single("image"),
   async (req, res) => {
-    const { name, cuisine, working_hours } = req.body;
-    const image_url = req.file ? `/uploads/${req.file.filename}` : null; // ✅ Чува патека до сликата
+    const { name, cuisine, working_hours, menuItems } = req.body; // Примање на мени ставки
+    const image_url = req.file ? `/uploads/${req.file.filename}` : null;
 
-    if (!name || !cuisine || !image_url || !working_hours) {
+    if (!name || !cuisine || !working_hours || !image_url) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
     try {
+      // ✅ Додавање на ресторанот
       const query = `
-      INSERT INTO restaurants (name, cuisine, image_url, working_hours)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `;
+        INSERT INTO restaurants (name, cuisine, image_url, working_hours)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+      `;
       const result = await client.query(query, [
         name,
         cuisine,
         image_url,
         working_hours,
       ]);
-      res.status(201).json(result.rows[0]);
-    } catch (error) {
-      console.error("Error adding restaurant:", error);
-      res.status(500).json({ message: "Error adding restaurant." });
-    }
-  }
-);
+      const restaurantId = result.rows[0].id;
 
-app.post(
-  "/restaurants",
-  authenticateAdmin,
-  upload.single("image"),
-  async (req, res) => {
-    try {
-      const { name, cuisine, working_hours } = req.body;
-      const image_url = req.file ? `/uploads/${req.file.filename}` : null; // Проверка дали има слика
+      // ✅ Додавање на мени ставки (ако ги има)
+      if (menuItems && Array.isArray(menuItems)) {
+        const menuQuery = `
+          INSERT INTO menu_items (name, price, image_url, category, ingredients, addons, restaurant_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `;
 
-      if (!name || !cuisine || !working_hours) {
-        return res.status(400).json({ error: "Missing required fields" });
+        for (const item of menuItems) {
+          await client.query(menuQuery, [
+            item.name,
+            item.price,
+            item.image_url || null, // Ако нема слика, да биде NULL
+            item.category,
+            item.ingredients || [],
+            item.addons || [],
+            restaurantId,
+          ]);
+        }
       }
 
-      const newRestaurant = await pool.query(
-        "INSERT INTO restaurants (name, cuisine, image_url, working_hours) VALUES ($1, $2, $3, $4) RETURNING *",
-        [name, cuisine, image_url, working_hours]
-      );
-
-      res.json(newRestaurant.rows[0]);
-    } catch (err) {
-      console.error("Error adding restaurant:", err);
-      res.status(500).json({ error: "Internal server error" });
+      res
+        .status(201)
+        .json({ message: "Restaurant and menu added successfully." });
+    } catch (error) {
+      console.error("Error adding restaurant and menu:", error);
+      res.status(500).json({ message: "Error adding restaurant and menu." });
     }
   }
 );
+
+app.put("/restaurants/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { name, cuisine, working_hours } = req.body;
+  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+  console.log("Received Update Request:", {
+    id,
+    name,
+    cuisine,
+    working_hours,
+    image_url,
+  });
+
+  try {
+    const result = await pool.query(
+      "UPDATE restaurants SET name=$1, cuisine=$2, working_hours=$3, image_url=COALESCE($4, image_url) WHERE id=$5 RETURNING *",
+      [name, cuisine, working_hours, image_url, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Restaurant not found in DB" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error updating restaurant:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 // -----------------------------------------------------------------------------
 // Start the server
