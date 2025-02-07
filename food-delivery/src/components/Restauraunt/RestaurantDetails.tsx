@@ -221,7 +221,7 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
             <h3>{item.name}</h3>
             <p className="price">Цена: {item.price} ден.</p>
             <p>Категорија: {item.category}</p>
-            <p>Состојки: {item.ingredients.join(", ")}</p>
+            <p>Состојки: {(item.ingredients || []).join(", ")}</p>
             <button onClick={() => openModal(item)}>Додај во корпа</button>
           </MenuItemCard>
         ))}
@@ -232,9 +232,9 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
           isOpen={modalOpen}
           onClose={closeModal}
           itemName={selectedItem.name}
-          addons={selectedItem.addons.map((addon) => ({
+          addons={(selectedItem.addons || []).map((addon) => ({
             name: addon,
-            price: 50, // Пример цена за секој додаток, увери се дека е точно
+            price: 50,
           }))}
           onAddToCart={handleAddToCart}
         />

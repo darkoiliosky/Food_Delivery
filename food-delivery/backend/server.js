@@ -53,17 +53,20 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.static("public"));
-
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "public/uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Додава timestamp
+    cb(null, Date.now() + path.extname(file.originalname));
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
 const { Pool } = pkg;
 
 // ✅ Конекција со PostgreSQL
@@ -166,7 +169,7 @@ app.post("/login", async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, is_admin: user.is_admin },
       process.env.JWT_SECRET || "default_secret_key",
-      { expiresIn: "1h" }
+      { expiresIn: "2h" }
     );
 
     // Испрати го токенот како cookie
@@ -263,21 +266,24 @@ app.get("/restaurants/:id/menu", async (req, res) => {
   const restaurantId = req.params.id;
 
   try {
-    const result = await client.query(
+    // Прво провери дали постои самиот ресторан
+    const restaurantExists = await client.query(
+      "SELECT id FROM restaurants WHERE id = $1",
+      [restaurantId]
+    );
+    if (restaurantExists.rows.length === 0) {
+      return res.status(404).send("Restaurant not found.");
+    }
+
+    // Потоа земи ги мени предметите
+    const menuResult = await client.query(
       "SELECT * FROM menu_items WHERE restaurant_id = $1",
       [restaurantId]
     );
 
-    console.log(
-      `Fetched menu items for restaurant ID: ${restaurantId}`,
-      result.rows
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).send("No menu items found for this restaurant.");
-    }
-
-    res.json(result.rows);
+    // Нема потреба да враќаме 404 ако нема ниту еден menu_item
+    // Едноставно праќаме []
+    return res.json(menuResult.rows);
   } catch (error) {
     console.error("Error fetching menu items:", error);
     res.status(500).send("Error fetching menu items");
@@ -499,39 +505,106 @@ app.delete(
   async (req, res) => {
     const { id } = req.params;
 
+    // Земаш connection од Pool
+    const clientDB = await pool.connect();
+
     try {
-      // Прво, земи го image_url за ресторанот што се брише
-      const result = await client.query(
+      await clientDB.query("BEGIN");
+
+      // 1) Проверуваме дали ресторанот постои
+      const result = await clientDB.query(
         "SELECT image_url FROM restaurants WHERE id = $1",
         [id]
       );
-
       if (result.rows.length === 0) {
+        await clientDB.query("ROLLBACK");
         return res.status(404).json({ message: "Restaurant not found." });
       }
 
-      const imageUrl = result.rows[0].image_url;
+      const restaurantImageUrl = result.rows[0].image_url;
 
-      // Избриши го ресторанот од базата
-      await client.query("DELETE FROM restaurants WHERE id = $1", [id]);
+      // 2) Земи ги сите menu_items
+      const menuImagesResult = await clientDB.query(
+        "SELECT image_url FROM menu_items WHERE restaurant_id = $1",
+        [id]
+      );
+      const menuImages = menuImagesResult.rows
+        .map((row) => row.image_url)
+        .filter(Boolean);
 
-      // Ако постои слика, избриши ја од серверот
-      if (imageUrl) {
-        const imagePath = path.join(__dirname, "public", imageUrl);
+      // 3) Избриши `menu_items`
+      await clientDB.query("DELETE FROM menu_items WHERE restaurant_id = $1", [
+        id,
+      ]);
 
-        fs.unlink(imagePath, (err) => {
+      // 4) Избриши `restaurants`
+      await clientDB.query("DELETE FROM restaurants WHERE id = $1", [id]);
+
+      // 5) Заврши транзакција (COMMIT) – операции во базата се успешно завршени
+      await clientDB.query("COMMIT");
+
+      // 6) Сега избриши ги датотеките од дискот
+      // (дури после COMMIT, за да сме сигурни дека базата е ажурирана)
+
+      // Ако има слика за ресторанот:
+      if (restaurantImageUrl) {
+        const restaurantImagePath = path.join(
+          __dirname,
+          "public",
+          restaurantImageUrl
+        );
+        fs.unlink(restaurantImagePath, (err) => {
           if (err) {
-            console.error("❌ Error deleting image:", err);
+            console.error("❌ Error deleting restaurant image:", err);
           } else {
-            console.log("✅ Image deleted successfully:", imagePath);
+            console.log("✅ Restaurant image deleted:", restaurantImagePath);
           }
         });
       }
 
-      res.json({ message: "Restaurant deleted successfully." });
+      // Мену слики:
+      menuImages.forEach((imageUrl) => {
+        const menuImagePath = path.join(__dirname, "public", imageUrl);
+        fs.unlink(menuImagePath, (err) => {
+          if (err) {
+            console.error("❌ Error deleting menu image:", err);
+          } else {
+            console.log("✅ Menu image deleted:", menuImagePath);
+          }
+        });
+      });
+
+      // 7) Врати успешен одговор
+      res.json({
+        message: "Restaurant and its menu items deleted successfully.",
+      });
     } catch (error) {
+      // Ако нешто тргне наопаку, правиме ROLLBACK на базата
+      await clientDB.query("ROLLBACK");
       console.error("❌ Error deleting restaurant:", error);
       res.status(500).json({ message: "Error deleting restaurant." });
+    } finally {
+      // МНОГУ ВАЖНО: ослободи ја конекцијата кон базата
+      clientDB.release();
+    }
+  }
+);
+
+app.delete(
+  "/menu_items/:id",
+  authenticateToken,
+  authenticateAdmin,
+  async (req, res) => {
+    try {
+      const query = "DELETE FROM menu_items WHERE id = $1 RETURNING *";
+      const result = await client.query(query, [req.params.id]);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Menu item not found." });
+      }
+      res.json({ message: "Menu item deleted successfully." });
+    } catch (error) {
+      console.error("Error deleting menu item:", error);
+      res.status(500).json({ message: "Server error." });
     }
   }
 );
@@ -540,56 +613,81 @@ app.post(
   "/restaurants",
   authenticateToken,
   authenticateAdmin,
-  upload.single("image"),
+  upload.fields([
+    { name: "image", maxCount: 1 }, // ✅ Главна слика за ресторанот
+    { name: "menuImages", maxCount: 10 }, // ✅ До 10 слики за мени предмети
+  ]),
   async (req, res) => {
-    const { name, cuisine, working_hours, menuItems } = req.body; // Примање на мени ставки
-    const image_url = req.file ? `/uploads/${req.file.filename}` : null;
-
-    if (!name || !cuisine || !working_hours || !image_url) {
-      return res.status(400).json({ message: "All fields are required." });
-    }
-
     try {
-      // ✅ Додавање на ресторанот
-      const query = `
+      const { name, cuisine, working_hours, menuItems } = req.body;
+
+      if (!name || !cuisine || !working_hours) {
+        return res.status(400).json({ message: "All fields are required." });
+      }
+
+      const image_url = req.files["image"]
+        ? `/uploads/${req.files["image"][0].filename}`
+        : null;
+
+      // 1) Прво вметни го ресторанот
+      const restaurantQuery = `
         INSERT INTO restaurants (name, cuisine, image_url, working_hours)
         VALUES ($1, $2, $3, $4)
         RETURNING id
       `;
-      const result = await client.query(query, [
+      const restaurantResult = await client.query(restaurantQuery, [
         name,
         cuisine,
         image_url,
         working_hours,
       ]);
-      const restaurantId = result.rows[0].id;
+      const restaurantId = restaurantResult.rows[0].id;
 
-      // ✅ Додавање на мени ставки (ако ги има)
-      if (menuItems && Array.isArray(menuItems)) {
-        const menuQuery = `
-          INSERT INTO menu_items (name, price, image_url, category, ingredients, addons, restaurant_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `;
-
-        for (const item of menuItems) {
-          await client.query(menuQuery, [
-            item.name,
-            item.price,
-            item.image_url || null, // Ако нема слика, да биде NULL
-            item.category,
-            item.ingredients || [],
-            item.addons || [],
-            restaurantId,
-          ]);
+      // 2) Ако имаме 'menuItems' во body, парсирај ги и вметни ги во menu_items
+      if (menuItems) {
+        let parsedMenu;
+        try {
+          parsedMenu = JSON.parse(menuItems);
+        } catch (error) {
+          return res.status(400).json({ message: "Invalid menu format." });
         }
+
+        if (!Array.isArray(parsedMenu)) {
+          return res
+            .status(400)
+            .json({ message: "Menu items must be an array." });
+        }
+
+        // ✅ ОВДЕ треба да го ставиш map(...) + Promise.all(...)
+        // Наместо forEach(...) { client.query(...) }, користи го овој код:
+        const insertPromises = parsedMenu.map((item, index) => {
+          const menuImage =
+            req.files["menuImages"] && req.files["menuImages"][index]
+              ? `/uploads/${req.files["menuImages"][index].filename}`
+              : null;
+
+          // ВРАЌАШ Promise (client.query...) за секој item
+          return client.query(
+            `
+              INSERT INTO menu_items
+                (restaurant_id, name, price, image_url, category)
+              VALUES ($1, $2, $3, $4, $5)
+            `,
+            [restaurantId, item.name, item.price, menuImage, item.category]
+          );
+        });
+
+        // ❗ Важно: тука „чекаш“ сите промиси да завршат пред да вратиш одговор
+        await Promise.all(insertPromises);
       }
 
+      // 3) Ако сè прошло добро, врати одговор
       res
         .status(201)
         .json({ message: "Restaurant and menu added successfully." });
     } catch (error) {
       console.error("Error adding restaurant and menu:", error);
-      res.status(500).json({ message: "Error adding restaurant and menu." });
+      res.status(500).json({ message: "Server error." });
     }
   }
 );
@@ -623,6 +721,97 @@ app.put("/restaurants/:id", upload.single("image"), async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+app.put(
+  "/menu_items/:id",
+  authenticateToken,
+  authenticateAdmin,
+  async (req, res) => {
+    const { name, price, category, ingredients, addons } = req.body;
+    try {
+      const query = `
+      UPDATE menu_items
+      SET name = $1, price = $2, category = $3, ingredients = $4, addons = $5
+      WHERE id = $6
+      RETURNING *`;
+      const result = await client.query(query, [
+        name,
+        price,
+        category,
+        ingredients,
+        addons,
+        req.params.id,
+      ]);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Menu item not found." });
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Error updating menu item:", error);
+      res.status(500).json({ message: "Server error." });
+    }
+  }
+);
+
+app.delete(
+  "/restaurants/:id/menu",
+  authenticateToken,
+  authenticateAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      await client.query("DELETE FROM menu_items WHERE restaurant_id = $1", [
+        id,
+      ]);
+      res.json({ message: "All menu items deleted for this restaurant." });
+    } catch (error) {
+      console.error("Error deleting menu items:", error);
+      res.status(500).json({ message: "Server error." });
+    }
+  }
+);
+app.post(
+  "/restaurants/:id/menu",
+  authenticateToken,
+  authenticateAdmin,
+  upload.single("image"), // ако додаваме само 1 слика за еден предмет
+  async (req, res) => {
+    const { id } = req.params; // ID на ресторанот
+    const { name, price, category } = req.body; // Податоци за meni item
+
+    try {
+      // 1) Проверуваме дали ресторанот постои
+      const checkRestaurant = await client.query(
+        "SELECT * FROM restaurants WHERE id = $1",
+        [id]
+      );
+      if (checkRestaurant.rows.length === 0) {
+        return res.status(404).json({ message: "Restaurant not found." });
+      }
+
+      // 2) Подготвуваме image_url ако има качено слика
+      let image_url = null;
+      if (req.file) {
+        image_url = `/uploads/${req.file.filename}`;
+      }
+
+      // 3) Вметни ново мени во базата
+      await client.query(
+        `
+          INSERT INTO menu_items (restaurant_id, name, price, category, image_url)
+          VALUES ($1, $2, $3, $4, $5)
+        `,
+        [id, name, price, category, image_url]
+      );
+
+      res.status(201).json({ message: "New menu item added." });
+    } catch (error) {
+      console.error("Error adding menu item:", error);
+      res.status(500).json({ message: "Server error." });
+    }
+  }
+);
 
 // -----------------------------------------------------------------------------
 // Start the server
