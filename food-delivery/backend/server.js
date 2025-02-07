@@ -11,18 +11,18 @@ const { Client } = pkg;
 import crypto from "crypto"; // или import { v4 as uuidv4 } from 'uuid';
 import { sendResetPasswordEmail } from "./mailer.js";
 import { sendVerificationEmail } from "./mailer.js";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 dotenv.config();
 
 const app = express();
 const port = 5000;
-
-// ----------------- Ако не користите MongoDB, го отстрануваме  -----------------
-// import mongoose from "mongoose";
-// mongoose
-//   .connect(process.env.MONGO_URI)
-//   .then(() => console.log("Connected to MongoDB"))
-//   .catch((err) => console.error("DB connection error:", err));
 
 // -----------------------------------------------------------------------------
 // PostgreSQL client configuration
@@ -47,8 +47,21 @@ app.use(
     credentials: true, // Дозволи cross-site cookies
   })
 );
+
 app.use(express.json());
 app.use(cookieParser());
+app.use(express.static("public"));
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "public/uploads/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname)); // Додава timestamp
+  },
+});
+
+const upload = multer({ storage });
 
 // -----------------------------------------------------------------------------
 // Route: registerexpr
@@ -143,8 +156,6 @@ app.post("/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    console.log("Generated Token:", token); // DEBUG: Проверка на серверот
-
     // Испрати го токенот како cookie
     res.cookie("token", token, {
       httpOnly: true,
@@ -191,8 +202,6 @@ app.get("/restaurants", async (req, res) => {
 const authenticateToken = (req, res, next) => {
   const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
 
-  console.log("Received Token:", token); // Додај ова за дебагирање
-
   if (!token) {
     return res
       .status(401)
@@ -207,7 +216,6 @@ const authenticateToken = (req, res, next) => {
         console.error("Token verification failed:", err);
         return res.status(403).json({ message: "Invalid Token" });
       }
-      console.log("Decoded User:", user); // Додај ова за да провериш дали user.id постои
       req.user = user;
       next();
     }
@@ -314,12 +322,9 @@ app.get("/verify", async (req, res) => {
 });
 
 app.post("/forgot-password", async (req, res) => {
-  console.log("Vleze vo forgot password");
   const { emailOrPhone } = req.body;
-  console.log("🚀 Received forgot password request for:", emailOrPhone); // DEBUG 1
 
   if (!emailOrPhone) {
-    console.log("⚠️ Missing email or phone input!"); // DEBUG 2
     return res.status(400).send("Email or phone is required.");
   }
 
@@ -330,36 +335,26 @@ app.post("/forgot-password", async (req, res) => {
       [emailOrPhone]
     );
 
-    console.log("🛠 Database query result:", result.rows); // DEBUG 3
-
     if (result.rows.length === 0) {
-      console.log("❌ User not found in database"); // DEBUG 4
       return res.status(404).send("User not found.");
     }
 
     const user = result.rows[0];
-    console.log("✅ Found user:", user); // DEBUG 5
 
     // Генерирај токен за ресетирање на лозинка
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // Валидност: 1 час
-
-    console.log("🔑 Generated reset token:", resetToken); // DEBUG 6
 
     await client.query(
       "UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3",
       [resetToken, resetExpires, user.id]
     );
 
-    console.log("📩 Reset token saved in database for user:", user.email); // DEBUG 7
-
     const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
-    console.log("🔗 Reset link:", resetLink); // DEBUG 8
 
     // Испраќање на емаил со ресет линкот
     await sendResetPasswordEmail(user.email, resetLink);
 
-    console.log("✅ Reset email sent successfully!"); // DEBUG 9
     res.send("Reset link sent to your email.");
   } catch (error) {
     console.error("🔥 Error:", error);
@@ -369,11 +364,8 @@ app.post("/forgot-password", async (req, res) => {
 
 app.post("/reset-password", async (req, res) => {
   const { token, password } = req.body;
-  console.log("🔑 Received reset token:", token); // DEBUG 1
-  console.log("🔒 New password:", password); // DEBUG 2
 
   if (!token || !password) {
-    console.log("⚠️ Missing token or password!"); // DEBUG 3
     return res.status(400).send("Token and new password are required.");
   }
 
@@ -384,10 +376,7 @@ app.post("/reset-password", async (req, res) => {
       [token]
     );
 
-    console.log("🛠 Token search result:", result.rows); // DEBUG 4
-
     if (result.rows.length === 0) {
-      console.log("❌ Invalid or expired token"); // DEBUG 5
       return res.status(400).send("Invalid or expired token.");
     }
 
@@ -395,7 +384,6 @@ app.post("/reset-password", async (req, res) => {
 
     // Хаширај ја новата лозинка
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log("🔑 Hashed new password:", hashedPassword); // DEBUG 6
 
     // Ажурирај ја лозинката во базата и избриши го токенот
     await client.query(
@@ -403,7 +391,6 @@ app.post("/reset-password", async (req, res) => {
       [hashedPassword, user.id]
     );
 
-    console.log("✅ Password reset successful for user:", user.email); // DEBUG 7
     res.send("Password reset successful.");
   } catch (error) {
     console.error("🔥 Error resetting password:", error);
@@ -441,7 +428,6 @@ app.post("/profile/update-request", authenticateToken, async (req, res) => {
 // profile/confirm-changes
 app.get("/profile/confirm-changes", async (req, res) => {
   const { token } = req.query;
-  console.log("Received confirmation request. Token:", token);
 
   if (!token) {
     console.error("Missing token in request.");
@@ -454,8 +440,6 @@ app.get("/profile/confirm-changes", async (req, res) => {
       "SELECT * FROM users WHERE confirm_token = $1",
       [token]
     );
-
-    console.log("Database query result:", result.rows);
 
     if (result.rows.length === 0) {
       console.error("Invalid or expired token.");
@@ -470,8 +454,6 @@ app.get("/profile/confirm-changes", async (req, res) => {
         ? JSON.parse(user.pending_changes)
         : user.pending_changes;
 
-    console.log("User pending changes:", pendingChanges);
-
     // Ажурирање на корисничките податоци
     await client.query(
       "UPDATE users SET name = $1, lastname = $2, email = $3, phone = $4, pending_changes = NULL, confirm_token = NULL WHERE id = $5",
@@ -484,7 +466,6 @@ app.get("/profile/confirm-changes", async (req, res) => {
       ]
     );
 
-    console.log("User profile updated successfully.");
     res.send("Вашите податоци се успешно ажурирани!");
   } catch (error) {
     console.error("Error confirming changes:", error);
@@ -498,31 +479,6 @@ const authenticateAdmin = (req, res, next) => {
   next();
 };
 
-app.post(
-  "/restaurants",
-  authenticateToken,
-  authenticateAdmin,
-  async (req, res) => {
-    const { name, cuisine, image_url, working_hours } = req.body;
-
-    if (!name || !cuisine || !image_url || !working_hours) {
-      return res.status(400).json({ message: "All fields are required." });
-    }
-
-    try {
-      await client.query(
-        "INSERT INTO restaurants (name, cuisine, image_url, working_hours) VALUES ($1, $2, $3, $4)",
-        [name, cuisine, image_url, working_hours]
-      );
-
-      res.status(201).json({ message: "Restaurant added successfully." });
-    } catch (error) {
-      console.error("Error adding restaurant:", error);
-      res.status(500).json({ message: "Error adding restaurant." });
-    }
-  }
-);
-
 app.delete(
   "/restaurants/:id",
   authenticateToken,
@@ -531,7 +487,31 @@ app.delete(
     const { id } = req.params;
 
     try {
+      // Прво, земи го image_url за ресторанот што се брише
+      const result = await client.query(
+        "SELECT image_url FROM restaurants WHERE id = $1",
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Restaurant not found." });
+      }
+
+      const imageUrl = result.rows[0].image_url;
+
+      // Избриши го ресторанот од базата
       await client.query("DELETE FROM restaurants WHERE id = $1", [id]);
+
+      // Ако постои слика, избриши ја од серверот
+      if (imageUrl) {
+        const imagePath = path.join(__dirname, "public", imageUrl);
+        fs.unlink(imagePath, (err) => {
+          if (err) {
+            console.error("Error deleting image:", err);
+          }
+        });
+      }
+
       res.json({ message: "Restaurant deleted successfully." });
     } catch (error) {
       console.error("Error deleting restaurant:", error);
@@ -539,32 +519,65 @@ app.delete(
     }
   }
 );
-app.post("/restaurants", authenticateToken, async (req, res) => {
-  if (!req.user.is_admin) {
-    return res.status(403).send("Access denied. Admins only.");
-  }
 
-  const { name, cuisine, image_url, working_hours } = req.body; // ✅ Осигури се дека имињата се исти како во базата
+app.post(
+  "/restaurants",
+  authenticateToken,
+  authenticateAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    const { name, cuisine, working_hours } = req.body;
+    const image_url = req.file ? `/uploads/${req.file.filename}` : null; // ✅ Чува патека до сликата
 
-  try {
-    const insertQuery = `
+    if (!name || !cuisine || !image_url || !working_hours) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    try {
+      const query = `
       INSERT INTO restaurants (name, cuisine, image_url, working_hours)
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-    const result = await client.query(insertQuery, [
-      name,
-      cuisine,
-      image_url,
-      working_hours,
-    ]);
-
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error("Error adding restaurant:", error);
-    res.status(500).send("Error adding restaurant.");
+      const result = await client.query(query, [
+        name,
+        cuisine,
+        image_url,
+        working_hours,
+      ]);
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error("Error adding restaurant:", error);
+      res.status(500).json({ message: "Error adding restaurant." });
+    }
   }
-});
+);
+
+app.post(
+  "/restaurants",
+  authenticateAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { name, cuisine, working_hours } = req.body;
+      const image_url = req.file ? `/uploads/${req.file.filename}` : null; // Проверка дали има слика
+
+      if (!name || !cuisine || !working_hours) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const newRestaurant = await pool.query(
+        "INSERT INTO restaurants (name, cuisine, image_url, working_hours) VALUES ($1, $2, $3, $4) RETURNING *",
+        [name, cuisine, image_url, working_hours]
+      );
+
+      res.json(newRestaurant.rows[0]);
+    } catch (err) {
+      console.error("Error adding restaurant:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
 
 // -----------------------------------------------------------------------------
 // Start the server

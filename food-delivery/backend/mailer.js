@@ -26,7 +26,6 @@ export async function sendAdminNotification(userData) {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log("Admin notification sent:", info.messageId);
   } catch (error) {
     console.error("Error sending admin notification:", error);
   }
@@ -56,7 +55,6 @@ ${userData.verifyURL}
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log("Verification email sent:", info.messageId);
   } catch (error) {
     console.error("Error sending verification email:", error);
   }
@@ -83,7 +81,6 @@ export async function sendResetPasswordEmail(email, resetLink) {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log("Password reset email sent.");
   } catch (error) {
     console.error("Error sending reset password email:", error);
   }

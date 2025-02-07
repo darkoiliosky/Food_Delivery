@@ -86,7 +86,13 @@ const RestaurantList: React.FC<RestaurantListProps> = ({ restaurants }) => {
       {restaurants.length > 0 ? (
         restaurants.map((restaurant) => (
           <RestaurantCard key={restaurant.id}>
-            <img src={restaurant.image_url} alt={restaurant.name} />
+            <img
+              src={`http://localhost:5000${restaurant.image_url}`}
+              alt={restaurant.name}
+              onError={(e) => {
+                e.currentTarget.src = "/placeholder.jpg"; // Ако сликата не постои, користи default placeholder
+              }}
+            />{" "}
             <h3>{restaurant.name}</h3>
             <p>{restaurant.cuisine}</p>
             <p className="working-hours">{restaurant.working_hours}</p>

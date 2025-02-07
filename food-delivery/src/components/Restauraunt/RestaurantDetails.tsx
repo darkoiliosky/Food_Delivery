@@ -169,16 +169,12 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   const handleAddToCart = (
     selectedAddons: { name: string; price: number }[]
   ) => {
-    console.log("Selected Addons:", selectedAddons); // Додади лог
     if (selectedItem) {
       const addonsPrice = selectedAddons.reduce(
         (total, addon) => total + Number(addon.price),
         0
       );
       const totalPrice = selectedItem.price + addonsPrice;
-
-      console.log("Addons Price:", addonsPrice); // Проверка на цената на додатоците
-      console.log("Total Price:", totalPrice); // Проверка на конечната цена
 
       dispatch(
         addToCart({
@@ -197,7 +193,13 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   return (
     <Container>
       <RestaurantHeader>
-        <img src={restaurant.image_url} alt={restaurant.name} />
+        <img
+          src={`http://localhost:5000${restaurant.image_url}`}
+          alt={restaurant.name}
+          onError={(e) => {
+            e.currentTarget.src = "/placeholder.jpg"; // Ако сликата не постои, прикажи default placeholder
+          }}
+        />
         <h1>{restaurant.name}</h1>
         <p>{restaurant.cuisine}</p>
         <p className="working-hours">
@@ -209,7 +211,13 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
       <MenuGrid>
         {menuItems.map((item) => (
           <MenuItemCard key={item.id}>
-            <img src={item.image_url} alt={item.name} />
+            <img
+              src={`http://localhost:5000${item.image_url}`}
+              alt={item.name}
+              onError={(e) => {
+                e.currentTarget.src = "/placeholder.jpg"; // Default слика ако недостасува
+              }}
+            />
             <h3>{item.name}</h3>
             <p className="price">Цена: {item.price} ден.</p>
             <p>Категорија: {item.category}</p>

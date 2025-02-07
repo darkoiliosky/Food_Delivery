@@ -94,10 +94,8 @@ const Profile: React.FC = () => {
   useEffect(() => {
     const fetchUserProfile = async () => {
       const token = localStorage.getItem("token");
-      console.log("Token:", token);
       if (token) {
         try {
-          console.log("Fetching user profile...");
           // Поправено: Додадено withCredentials: true
           const response = await axios.get<UserProfile>(
             "http://localhost:5000/profile/",
@@ -140,8 +138,6 @@ const Profile: React.FC = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-
-      console.log("Response from server:", response.data); // ✅ Дебагирање
 
       if (response.status === 200) {
         setMessage("Испратен е емаил за потврда на измените!");
