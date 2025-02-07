@@ -51,10 +51,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 // -----------------------------------------------------------------------------
-// Route: register
+// Route: registerexpr
 // -----------------------------------------------------------------------------
 app.post("/register", async (req, res) => {
-  const { name, lastname, email, phone, password } = req.body;
+  const { name, lastname, email, phone, password, adminCode } = req.body;
 
   try {
     if (!name || !lastname || !email || !phone || !password) {
@@ -63,15 +63,18 @@ app.post("/register", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Проверка дали внесениот код е точен
+    const isAdmin = adminCode === process.env.ADMIN_CODE; // Чита од .env
+
     // Генерираме верификациски токен
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-    // Снимаме корисник со is_verified = false
+    // Снимаме корисник со is_verified = false + дали е админ
     const insertQuery = `
       INSERT INTO users
-        (name, lastname, email, phone, password, is_verified, verification_token, token_expires)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (name, lastname, email, phone, password, is_verified, verification_token, token_expires, is_admin)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `;
     await client.query(insertQuery, [
       name,
@@ -82,6 +85,7 @@ app.post("/register", async (req, res) => {
       false,
       verificationToken,
       tokenExpires,
+      isAdmin, // Додава администраторски статус
     ]);
 
     // 1) Верификациски имејл за корисникот
@@ -134,7 +138,7 @@ app.post("/login", async (req, res) => {
 
     // Генерирање на токен
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, is_admin: user.is_admin },
       process.env.JWT_SECRET || "default_secret_key",
       { expiresIn: "1h" }
     );
@@ -159,6 +163,7 @@ app.post("/login", async (req, res) => {
         lastname: user.lastname,
         email: user.email,
         phone: user.phone,
+        is_admin: user.is_admin, // ✅ Осигурај се дека се враќа
       },
     });
   } catch (error) {
@@ -484,6 +489,80 @@ app.get("/profile/confirm-changes", async (req, res) => {
   } catch (error) {
     console.error("Error confirming changes:", error);
     res.status(500).send("Internal server error.");
+  }
+});
+const authenticateAdmin = (req, res, next) => {
+  if (!req.user || !req.user.is_admin) {
+    return res.status(403).json({ message: "Access denied. Admins only." });
+  }
+  next();
+};
+
+app.post(
+  "/restaurants",
+  authenticateToken,
+  authenticateAdmin,
+  async (req, res) => {
+    const { name, cuisine, image_url, working_hours } = req.body;
+
+    if (!name || !cuisine || !image_url || !working_hours) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    try {
+      await client.query(
+        "INSERT INTO restaurants (name, cuisine, image_url, working_hours) VALUES ($1, $2, $3, $4)",
+        [name, cuisine, image_url, working_hours]
+      );
+
+      res.status(201).json({ message: "Restaurant added successfully." });
+    } catch (error) {
+      console.error("Error adding restaurant:", error);
+      res.status(500).json({ message: "Error adding restaurant." });
+    }
+  }
+);
+
+app.delete(
+  "/restaurants/:id",
+  authenticateToken,
+  authenticateAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      await client.query("DELETE FROM restaurants WHERE id = $1", [id]);
+      res.json({ message: "Restaurant deleted successfully." });
+    } catch (error) {
+      console.error("Error deleting restaurant:", error);
+      res.status(500).json({ message: "Error deleting restaurant." });
+    }
+  }
+);
+app.post("/restaurants", authenticateToken, async (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).send("Access denied. Admins only.");
+  }
+
+  const { name, cuisine, image_url, working_hours } = req.body; // ✅ Осигури се дека имињата се исти како во базата
+
+  try {
+    const insertQuery = `
+      INSERT INTO restaurants (name, cuisine, image_url, working_hours)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `;
+    const result = await client.query(insertQuery, [
+      name,
+      cuisine,
+      image_url,
+      working_hours,
+    ]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("Error adding restaurant:", error);
+    res.status(500).send("Error adding restaurant.");
   }
 });
 

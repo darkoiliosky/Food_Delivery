@@ -3,6 +3,6 @@ export interface Restaurant {
   id: number;
   name: string;
   cuisine: string;
-  imageUrl: string; // Додадено imageUrl
-  workingHours: string; // Додадено workingHours
+  image_url: string; // Додадено imageUrl
+  working_hours: string; // Додадено workingHours
 }

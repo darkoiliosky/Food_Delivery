@@ -1,20 +1,24 @@
-// AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
+// ✅ Поправена дефиниција на User (без дупликации)
 interface User {
+  id: number;
   name: string;
   lastname: string;
   email: string;
   phone?: string;
   dob?: string;
+  is_admin: boolean; // Додадено поле за администратор
 }
 
+// ✅ Интерфејс за одговор при најава
 interface LoginResponse {
   token: string;
   user: User;
 }
 
+// ✅ Интерфејс за AuthContext
 interface AuthContextType {
   isLoggedIn: boolean;
   user: User | null;
@@ -22,6 +26,7 @@ interface AuthContextType {
   login: (emailOrPhone: string, password: string) => Promise<void>;
   logout: () => void;
 }
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -30,14 +35,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
-  // Оваа useEffect ќе се активира само кога ќе се учита компонентата
+  // ✅ Проверка при вчитување на апликацијата дали корисникот е најавен
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
     if (storedToken && storedUser) {
       try {
-        const parsedUser = JSON.parse(storedUser); // Проба за парсирање на JSON
+        const parsedUser: User = JSON.parse(storedUser); // Проба за парсирање на JSON
         setUser(parsedUser);
         setIsLoggedIn(true);
       } catch (error) {
@@ -52,6 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
     }
   }, []);
+
+  // ✅ Функција за најава
   const login = async (emailOrPhone: string, password: string) => {
     try {
       const response = await axios.post<LoginResponse>(
@@ -61,9 +68,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       const { token, user } = response.data;
-
-      console.log("Token received from backend:", token); // DEBUG
-      console.log("User received:", user); // DEBUG
 
       if (!token) {
         throw new Error("Token not received from server.");
@@ -80,11 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // ✅ Функција за одјава
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
-    setIsLoggedIn(false); // Постави статус на одјавен
+    setIsLoggedIn(false);
   };
 
   return (
@@ -96,6 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
+// ✅ Hook за користење на AuthContext
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

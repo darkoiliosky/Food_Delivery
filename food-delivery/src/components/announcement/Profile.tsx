@@ -137,11 +137,11 @@ const Profile: React.FC = () => {
         "http://localhost:5000/profile/update-request",
         formData,
         {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
+
+      console.log("Response from server:", response.data); // ✅ Дебагирање
 
       if (response.status === 200) {
         setMessage("Испратен е емаил за потврда на измените!");

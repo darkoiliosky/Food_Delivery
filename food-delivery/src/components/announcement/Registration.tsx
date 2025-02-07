@@ -69,6 +69,7 @@ const Register: React.FC = () => {
     email: "",
     phone: "",
     password: "",
+    adminCode: "", // Додадено поле за админ код
   });
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -135,6 +136,14 @@ const Register: React.FC = () => {
             value={formData.password}
             onChange={handleChange}
             required
+          />
+          {/* Ново поле за админ код (опционално) */}
+          <StyledInput
+            type="text"
+            name="adminCode"
+            placeholder="Admin Code (Optional)"
+            value={formData.adminCode}
+            onChange={handleChange}
           />
           <StyledButton type="submit">Register</StyledButton>
         </StyledForm>

@@ -16,6 +16,7 @@ import { Restaurant } from "./types";
 import ResetPassword from "./components/announcement/ResetPassword";
 import ForgotPassword from "./components/announcement/ForgotPassword";
 import ConfirmChanges from "./pages/ConfirmChanges";
+import AdminPanel from "./pages/AdminPanel";
 
 const App: React.FC = () => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]); // Типизирана состојба
@@ -60,6 +61,7 @@ const App: React.FC = () => {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/confirm-changes" element={<ConfirmChanges />} />
+            <Route path="/admin" element={<AdminPanel />} />
           </Routes>
           <MainFooter />
         </Router>

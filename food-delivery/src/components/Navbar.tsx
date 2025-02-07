@@ -58,8 +58,9 @@ const Navbar: React.FC = () => {
     logout();
     navigate("/login");
   };
+
   if (isLoggedIn) {
-    console.log(user);
+    console.log("Корисник:", user);
   }
   return (
     <NavbarContainer>
@@ -76,6 +77,14 @@ const Navbar: React.FC = () => {
           <StyledLink to="/profile">
             <FaUser /> {user?.name || "Profile"}
           </StyledLink>
+
+          {/* Ако корисникот е администратор, прикажи линк до Админ Панелот */}
+          {user?.is_admin && (
+            <StyledLink to="/admin" style={{ fontSize: "20px" }}>
+              Админ Панел
+            </StyledLink>
+          )}
+
           <Button onClick={handleLogout}>Logout</Button>
         </>
       ) : (

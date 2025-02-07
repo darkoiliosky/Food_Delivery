@@ -52,8 +52,8 @@ interface Restaurant {
   id: number;
   name: string;
   cuisine: string;
-  imageUrl: string;
-  workingHours: string;
+  imimage_urlageUrl: string;
+  working_hours: string;
 }
 
 interface HeaderProps {
