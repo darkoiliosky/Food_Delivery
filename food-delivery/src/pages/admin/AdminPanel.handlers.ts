@@ -38,8 +38,20 @@ export const handleAddRestaurant = async (
     imageFile: File | null;
   }[],
   fetchRestaurants: () => void,
-  setNewRestaurant: (val: any) => void,
-  setMenuItems: (val: any) => void
+  setNewRestaurant: (val: {
+    name: string;
+    cuisine: string;
+    working_hours: string;
+    imageFile: File | null;
+  }) => void,
+  setMenuItems: (
+    val: {
+      name: string;
+      price: string;
+      category: string;
+      imageFile: File | null;
+    }[]
+  ) => void
 ) => {
   e.preventDefault();
   try {
@@ -127,7 +139,12 @@ export const handleDeleteRestaurant = async (
 export const handleOpenAddItem = (
   restaurantId: number,
   setShowAddItemId: (val: number | null) => void,
-  setNewItem: (val: any) => void
+  setNewItem: (val: {
+    name: string;
+    price: string;
+    category: string;
+    imageFile: File | null;
+  }) => void
 ) => {
   setShowAddItemId(restaurantId);
   setNewItem({ name: "", price: "", category: "", imageFile: null });
@@ -146,7 +163,12 @@ export const handleAddMenuItemToRestaurant = async (
   },
   fetchRestaurants: () => void,
   setShowAddItemId: (val: number | null) => void,
-  setNewItem: (val: any) => void
+  setNewItem: (val: {
+    name: string;
+    price: string;
+    category: string;
+    imageFile: File | null;
+  }) => void
 ) => {
   if (!showAddItemId) return;
   try {

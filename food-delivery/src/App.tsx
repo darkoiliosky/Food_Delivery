@@ -16,7 +16,7 @@ import { Restaurant } from "./types";
 import ResetPassword from "./components/announcement/ResetPassword";
 import ForgotPassword from "./components/announcement/ForgotPassword";
 import ConfirmChanges from "./pages/ConfirmChanges";
-import AdminPanel from "./pages/AdminPanel";
+import AdminPanel from "./pages/admin/AdminPanel";
 
 const App: React.FC = () => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]); // Типизирана состојба

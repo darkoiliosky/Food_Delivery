@@ -14,7 +14,7 @@ import {
   Image,
   MenuItemsContainer,
   CollapsibleContainer,
-} from "./admin/AdminPanel.styles";
+} from "./AdminPanel.styles";
 
 // ✅ Ги увезуваме "handler" функциите
 import {
@@ -26,7 +26,7 @@ import {
   handleAddMenuItemToRestaurant,
   handleDeleteMenuItem,
   handleUpdateMenuItem,
-} from "./admin/AdminPanel.handlers";
+} from "./AdminPanel.handlers";
 
 // Типизиран interface (можеш и во .utils)
 interface Restaurant {
