@@ -497,7 +497,6 @@ const authenticateAdmin = (req, res, next) => {
   }
   next();
 };
-
 app.delete(
   "/restaurants/:id",
   authenticateToken,
@@ -532,12 +531,12 @@ app.delete(
         .map((row) => row.image_url)
         .filter(Boolean);
 
-      // 3) Избриши `menu_items`
+      // 3) Избриши menu_items
       await clientDB.query("DELETE FROM menu_items WHERE restaurant_id = $1", [
         id,
       ]);
 
-      // 4) Избриши `restaurants`
+      // 4) Избриши restaurants
       await clientDB.query("DELETE FROM restaurants WHERE id = $1", [id]);
 
       // 5) Заврши транзакција (COMMIT) – операции во базата се успешно завршени
@@ -546,32 +545,48 @@ app.delete(
       // 6) Сега избриши ги датотеките од дискот
       // (дури после COMMIT, за да сме сигурни дека базата е ажурирана)
 
-      // Ако има слика за ресторанот:
+      // Ако има слика за ресторанот, избриши ја
       if (restaurantImageUrl) {
         const restaurantImagePath = path.join(
           __dirname,
           "public",
-          restaurantImageUrl
+          "uploads",
+          path.basename(restaurantImageUrl) // Осигурај се дека не користи цела патека
         );
-        fs.unlink(restaurantImagePath, (err) => {
-          if (err) {
-            console.error("❌ Error deleting restaurant image:", err);
-          } else {
-            console.log("✅ Restaurant image deleted:", restaurantImagePath);
-          }
-        });
+
+        if (fs.existsSync(restaurantImagePath)) {
+          fs.unlink(restaurantImagePath, (err) => {
+            if (err) {
+              console.error("❌ Error deleting restaurant image:", err);
+            } else {
+              console.log("✅ Restaurant image deleted:", restaurantImagePath);
+            }
+          });
+        } else {
+          console.warn("⚠️ Restaurant image not found:", restaurantImagePath);
+        }
       }
 
       // Мену слики:
       menuImages.forEach((imageUrl) => {
-        const menuImagePath = path.join(__dirname, "public", imageUrl);
-        fs.unlink(menuImagePath, (err) => {
-          if (err) {
-            console.error("❌ Error deleting menu image:", err);
-          } else {
-            console.log("✅ Menu image deleted:", menuImagePath);
-          }
-        });
+        const menuImagePath = path.join(
+          __dirname,
+          "public",
+          "uploads",
+          path.basename(imageUrl)
+        );
+
+        if (fs.existsSync(menuImagePath)) {
+          fs.unlink(menuImagePath, (err) => {
+            if (err) {
+              console.error("❌ Error deleting menu image:", err);
+            } else {
+              console.log("✅ Menu image deleted:", menuImagePath);
+            }
+          });
+        } else {
+          console.warn("⚠️ Menu image not found:", menuImagePath);
+        }
       });
 
       // 7) Врати успешен одговор
@@ -726,28 +741,72 @@ app.put(
   "/menu_items/:id",
   authenticateToken,
   authenticateAdmin,
+  upload.single("image"), // Ако дозволуваш ажурирање на слика
   async (req, res) => {
+    const { id } = req.params;
     const { name, price, category, ingredients, addons } = req.body;
+    let imageUrl = null;
+
     try {
-      const query = `
-      UPDATE menu_items
-      SET name = $1, price = $2, category = $3, ingredients = $4, addons = $5
-      WHERE id = $6
-      RETURNING *`;
-      const result = await client.query(query, [
+      // 1️⃣ Проверка дали предметот постои во базата
+      const result = await client.query(
+        "SELECT image_url FROM menu_items WHERE id = $1",
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Menu item not found." });
+      }
+
+      const existingImageUrl = result.rows[0].image_url;
+
+      // 2️⃣ Ако има нова слика, избриши ја старата
+      if (req.file) {
+        imageUrl = `/uploads/${req.file.filename}`;
+
+        if (existingImageUrl) {
+          const oldImagePath = path.join(__dirname, "public", existingImageUrl);
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlink(oldImagePath, (err) => {
+              if (err) {
+                console.error("❌ Error deleting old image:", err);
+              } else {
+                console.log("✅ Old menu item image deleted:", oldImagePath);
+              }
+            });
+          }
+        }
+      } else {
+        imageUrl = existingImageUrl; // Ако нема нова слика, користи ја старата
+      }
+
+      // 3️⃣ Ажурирање на податоците во базата
+      const updateQuery = `
+        UPDATE menu_items 
+        SET name = $1, price = $2, category = $3, ingredients = $4, addons = $5, image_url = $6
+        WHERE id = $7
+        RETURNING *`;
+
+      const updatedItem = await client.query(updateQuery, [
         name,
         price,
         category,
         ingredients,
         addons,
-        req.params.id,
+        imageUrl,
+        id,
       ]);
-      if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Menu item not found." });
+
+      if (updatedItem.rows.length === 0) {
+        return res.status(404).json({ message: "Menu item update failed." });
       }
-      res.json(result.rows[0]);
+
+      res.json({
+        message: "Menu item updated successfully.",
+        menuItem: updatedItem.rows[0],
+      });
     } catch (error) {
-      console.error("Error updating menu item:", error);
+      console.error("❌ Error updating menu item:", error);
       res.status(500).json({ message: "Server error." });
     }
   }

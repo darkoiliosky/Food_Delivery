@@ -139,11 +139,14 @@ const Register: React.FC = () => {
           />
           {/* Ново поле за админ код (опционално) */}
           <StyledInput
-            type="text"
+            type="password"
             name="adminCode"
-            placeholder="Admin Code (Optional)"
+            placeholder="Admin Code (optional)"
             value={formData.adminCode}
             onChange={handleChange}
+            autoComplete="off"
+            spellCheck={false}
+            inputMode="none"
           />
           <StyledButton type="submit">Register</StyledButton>
         </StyledForm>
