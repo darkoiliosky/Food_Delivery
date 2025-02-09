@@ -82,6 +82,7 @@ const AdminPanel = () => {
 
   // Edit на веќе постоечки мени предмет
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>(""); // ✅ Додај state за пребарување
 
   // При mount: земи ги сите ресторани
   useEffect(() => {
@@ -106,7 +107,9 @@ const AdminPanel = () => {
       }
     }
   };
-
+  const filteredRestaurants = restaurants.filter((restaurant) =>
+    restaurant.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   return (
     <PanelContainer>
       <Header>Admin Panel</Header>
@@ -218,8 +221,16 @@ const AdminPanel = () => {
       )}
 
       <SubHeader>Existing Restaurants:</SubHeader>
+      {/* ✅ Поле за пребарување */}
+      <Input
+        type="text"
+        placeholder="Search restaurants..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        style={{ marginBottom: "20px", width: "100%", padding: "10px" }}
+      />
       <RestaurantGrid>
-        {restaurants.map((r) => (
+        {filteredRestaurants.map((r) => (
           <RestaurantCard key={r.id}>
             <CardTopRow>
               <CardInfo>
