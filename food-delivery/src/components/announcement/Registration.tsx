@@ -69,16 +69,46 @@ const Register: React.FC = () => {
     email: "",
     phone: "",
     password: "",
-    adminCode: "", // Додадено поле за админ код
+    role: "customer", // Додај го role со почетна вредност customer
+    adminCode: "",
+    deliveryCode: "", // ✅ Додадено
   });
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+
+    setFormData((prev) => {
+      const updatedFormData = {
+        ...prev,
+        [name]: value,
+      };
+
+      // Ако се менува улогата, избришете ги непотребните полиња
+      if (name === "role") {
+        updatedFormData.adminCode = value === "admin" ? prev.adminCode : "";
+        updatedFormData.deliveryCode =
+          value === "delivery" ? prev.deliveryCode : "";
+      }
+
+      return updatedFormData;
+    });
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (formData.role === "admin" && !formData.adminCode) {
+      toast.error("Admin Code is required for admin registration!");
+      return;
+    }
+
+    if (formData.role === "delivery" && !formData.deliveryCode) {
+      toast.error("Delivery Code is required for delivery registration!");
+      return;
+    }
+
     try {
       await axios.post("http://localhost:5000/register", formData);
       toast.success("Registration successful!");
@@ -138,16 +168,41 @@ const Register: React.FC = () => {
             required
           />
           {/* Ново поле за админ код (опционално) */}
-          <StyledInput
-            type="password"
-            name="adminCode"
-            placeholder="Admin Code (optional)"
-            value={formData.adminCode}
+          {/* Ако е избран "admin", прикажи Admin Code */}
+          {formData.role === "admin" && (
+            <StyledInput
+              type="password"
+              name="adminCode"
+              placeholder="Admin Code"
+              value={formData.adminCode}
+              onChange={handleChange}
+              required
+            />
+          )}
+
+          {/* Ако е избран "delivery", прикажи Delivery Code */}
+          {formData.role === "delivery" && (
+            <StyledInput
+              type="password"
+              name="deliveryCode"
+              placeholder="Delivery Code"
+              value={formData.deliveryCode}
+              onChange={handleChange}
+              required
+            />
+          )}
+
+          <select
+            name="role"
+            value={formData.role}
             onChange={handleChange}
-            autoComplete="off"
-            spellCheck={false}
-            inputMode="none"
-          />
+            required
+          >
+            <option value="customer">Customer</option>
+            <option value="delivery">Delivery</option>
+            <option value="admin">Admin</option> {/* Додадено */}
+          </select>
+
           <StyledButton type="submit">Register</StyledButton>
         </StyledForm>
         <p style={{ textAlign: "center", marginTop: "1rem" }}>

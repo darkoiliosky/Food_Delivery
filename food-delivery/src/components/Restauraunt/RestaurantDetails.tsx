@@ -64,6 +64,18 @@ const RestaurantHeader = styled.div`
   }
 `;
 
+const FilterContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+`;
+
+const Select = styled.select`
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 5px;
+`;
+
 const MenuGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -123,13 +135,14 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   restaurants,
 }) => {
   const { id } = useParams<{ id: string }>();
-  const dispatch = useAppDispatch(); // Користи го dispatch од Redux
+  const dispatch = useAppDispatch();
   const restaurant = restaurants.find((r) => r.id === Number(id));
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>(""); // ✅ Додаден state за селектирана категорија
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -155,6 +168,14 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   if (loading) {
     return <p>Вчитување на менито...</p>;
   }
+
+  // ✅ Извлекување на уникатни категории од менито
+  const categories = [...new Set(menuItems.map((item) => item.category))];
+
+  // ✅ Филтрирање на мени предметите според избраната категорија
+  const filteredMenu = selectedCategory
+    ? menuItems.filter((item) => item.category === selectedCategory)
+    : menuItems;
 
   const openModal = (item: MenuItem) => {
     setSelectedItem(item);
@@ -183,7 +204,7 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
           price: selectedItem.price,
           quantity: 1,
           totalPrice: totalPrice,
-          addons: selectedAddons.map((addon) => addon.name),
+          restaurant_id: restaurant.id,
         })
       );
     }
@@ -197,7 +218,7 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
           src={`http://localhost:5000${restaurant.image_url}`}
           alt={restaurant.name}
           onError={(e) => {
-            e.currentTarget.src = "/placeholder.jpg"; // Ако сликата не постои, прикажи default placeholder
+            e.currentTarget.src = "/placeholder.jpg";
           }}
         />
         <h1>{restaurant.name}</h1>
@@ -207,15 +228,30 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
         </p>
       </RestaurantHeader>
 
+      {/* ✅ Филтер по категорија */}
+      <FilterContainer>
+        <Select
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          value={selectedCategory}
+        >
+          <option value="">Сите категории</option>
+          {categories.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </Select>
+      </FilterContainer>
+
       <h2>Мени</h2>
       <MenuGrid>
-        {menuItems.map((item) => (
+        {filteredMenu.map((item) => (
           <MenuItemCard key={item.id}>
             <img
               src={`http://localhost:5000${item.image_url}`}
               alt={item.name}
               onError={(e) => {
-                e.currentTarget.src = "/placeholder.jpg"; // Default слика ако недостасува
+                e.currentTarget.src = "/placeholder.jpg";
               }}
             />
             <h3>{item.name}</h3>

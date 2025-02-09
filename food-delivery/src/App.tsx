@@ -17,9 +17,11 @@ import ResetPassword from "./components/announcement/ResetPassword";
 import ForgotPassword from "./components/announcement/ForgotPassword";
 import ConfirmChanges from "./pages/ConfirmChanges";
 import AdminPanel from "./pages/admin/AdminPanel";
+import MyDeliveries from "./pages/delivery/MyDeliveries";
+import MyOrders from "./pages/MyOrders";
 
 const App: React.FC = () => {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]); // Типизирана состојба
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,9 +30,11 @@ const App: React.FC = () => {
         const response = await axios.get<Restaurant[]>(
           "http://localhost:5000/restaurants"
         );
-        setRestaurants(response.data); // Без мапирање
+        if (response.data) {
+          setRestaurants(response.data);
+        }
       } catch (error) {
-        console.error("Error fetching restaurants:", error);
+        console.error("❌ Грешка при преземање на ресторани:", error);
       } finally {
         setLoading(false);
       }
@@ -40,12 +44,12 @@ const App: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <div>Вчитување на рестораните...</div>;
+    return <div>🔄 Вчитување на рестораните...</div>;
   }
 
   return (
-    <AuthProvider>
-      <Provider store={store}>
+    <Provider store={store}>
+      <AuthProvider>
         <Router>
           <Navbar />
           <Routes>
@@ -62,11 +66,13 @@ const App: React.FC = () => {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/confirm-changes" element={<ConfirmChanges />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/my-orders" element={<MyOrders />} />
+            <Route path="/my-deliveries" element={<MyDeliveries />} />
           </Routes>
           <MainFooter />
         </Router>
-      </Provider>
-    </AuthProvider>
+      </AuthProvider>
+    </Provider>
   );
 };
 

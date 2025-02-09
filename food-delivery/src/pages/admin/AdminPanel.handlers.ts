@@ -35,6 +35,7 @@ export const handleAddRestaurant = async (
     name: string;
     price: string;
     category: string;
+    ingredients?: { name: string; price: number }[];
     imageFile: File | null;
   }[],
   fetchRestaurants: () => void,
@@ -64,7 +65,17 @@ export const handleAddRestaurant = async (
       formData.append("image", newRestaurant.imageFile);
     }
     // Мени предмети
-    formData.append("menuItems", JSON.stringify(menuItems));
+    formData.append(
+      "menuItems",
+      JSON.stringify(
+        menuItems.map((item) => ({
+          ...item,
+          ingredients: item.ingredients
+            ? item.ingredients.map((ing) => ing.name)
+            : [], // ✅ Испрати само имиња на состојките
+        }))
+      )
+    );
     menuItems.forEach((item) => {
       if (item.imageFile) {
         formData.append("menuImages", item.imageFile);
@@ -107,6 +118,8 @@ export const handleUpdateRestaurant = async (
 
     if (editRestaurant.imageFile) {
       formData.append("image", editRestaurant.imageFile);
+    } else {
+      formData.append("image_url", editRestaurant.image_url || ""); // ✅ Осигурување дека `image_url` не е изгубен
     }
 
     await updateRestaurant(editRestaurant.id, formData);
@@ -143,11 +156,18 @@ export const handleOpenAddItem = (
     name: string;
     price: string;
     category: string;
+    ingredients: string[];
     imageFile: File | null;
   }) => void
 ) => {
   setShowAddItemId(restaurantId);
-  setNewItem({ name: "", price: "", category: "", imageFile: null });
+  setNewItem({
+    name: "",
+    price: "",
+    category: "",
+    ingredients: [],
+    imageFile: null,
+  });
 };
 
 /**
@@ -159,6 +179,7 @@ export const handleAddMenuItemToRestaurant = async (
     name: string;
     price: string;
     category: string;
+    ingredients?: string[];
     imageFile: File | null;
   },
   fetchRestaurants: () => void,
@@ -167,6 +188,7 @@ export const handleAddMenuItemToRestaurant = async (
     name: string;
     price: string;
     category: string;
+    ingredients: string[]; // ✅ Додади го ова
     imageFile: File | null;
   }) => void
 ) => {
@@ -177,6 +199,13 @@ export const handleAddMenuItemToRestaurant = async (
     formData.append("price", newItem.price);
     formData.append("category", newItem.category);
 
+    // ✅ Осигурај се дека `ingredients` се обработува како низа, без празни вредности
+    const cleanedIngredients = (newItem.ingredients || [])
+      .map((ing) => ing.trim()) // Тримирање на празни размaци
+      .filter((ing) => ing.length > 0); // Отстранување на празни состојки
+
+    formData.append("ingredients", JSON.stringify(cleanedIngredients));
+
     if (newItem.imageFile) {
       formData.append("image", newItem.imageFile);
     }
@@ -185,7 +214,13 @@ export const handleAddMenuItemToRestaurant = async (
 
     fetchRestaurants();
     setShowAddItemId(null);
-    setNewItem({ name: "", price: "", category: "", imageFile: null });
+    setNewItem({
+      name: "",
+      price: "",
+      category: "",
+      ingredients: [],
+      imageFile: null,
+    }); // ✅ Додадено празна низа за `ingredients`
   } catch (error) {
     console.error("Error adding menu item:", error);
   }
@@ -221,6 +256,19 @@ export const handleUpdateMenuItem = async (
     formData.append("price", editingItem.price);
     formData.append("category", editingItem.category);
 
+    // ✅ Осигурај се дека `ingredients` е низа, отстрани празни вредности и дупликати
+    const cleanedIngredients = Array.from(
+      new Set(
+        (editingItem.ingredients || [])
+          .map((ing) => ing.trim()) // Тримирање на празни размaци
+          .filter((ing) => ing.length > 0) // Отстранување на празни елементи
+      )
+    );
+
+    console.log("📤 Испраќам следни `ingredients`:", cleanedIngredients);
+
+    formData.append("ingredients", JSON.stringify(cleanedIngredients));
+
     if (editingItem.imageFile) {
       formData.append("image", editingItem.imageFile);
     }
@@ -231,6 +279,6 @@ export const handleUpdateMenuItem = async (
     setEditingItem(null);
     fetchRestaurants();
   } catch (error) {
-    console.error("Error updating menu item:", error);
+    console.error("❌ Грешка при ажурирање на мени предмет:", error);
   }
 };

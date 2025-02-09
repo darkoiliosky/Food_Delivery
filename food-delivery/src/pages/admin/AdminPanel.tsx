@@ -1,3 +1,4 @@
+// AdminPanel.tsx
 import { useState, useEffect } from "react";
 import {
   PanelContainer,
@@ -44,6 +45,7 @@ interface MenuItem {
   name: string;
   price: string;
   category: string;
+  ingredients?: string[]; // ✅ Додај ова поле
   imageFile?: File | null;
   image_url?: string;
 }
@@ -74,6 +76,7 @@ const AdminPanel = () => {
     name: "",
     price: "",
     category: "",
+    ingredients: [] as string[],
     imageFile: null as File | null,
   });
 
@@ -235,11 +238,19 @@ const AdminPanel = () => {
             <ButtonRow>
               <Button
                 onClick={() => {
-                  setEditRestaurant({ ...r, imageFile: null });
+                  setEditRestaurant({
+                    id: r.id,
+                    name: r.name,
+                    cuisine: r.cuisine,
+                    working_hours: r.working_hours,
+                    image_url: r.image_url, // ✅ Додадено за да не исчезне сликата
+                    imageFile: null,
+                  });
                 }}
               >
                 Edit
               </Button>
+
               <Button
                 variant="danger"
                 onClick={() =>
@@ -270,10 +281,16 @@ const AdminPanel = () => {
                       <>
                         <Button
                           variant="primary"
-                          onClick={() => setEditingItem(item)}
+                          onClick={() =>
+                            setEditingItem({
+                              ...item,
+                              ingredients: item.ingredients || [], // Осигурај дека нема `undefined`
+                            })
+                          }
                         >
                           ✏️ Edit
                         </Button>
+
                         <Button
                           variant="danger"
                           onClick={() =>
@@ -289,6 +306,7 @@ const AdminPanel = () => {
                     {editingItem && editingItem.id === item.id && (
                       <CollapsibleContainer>
                         <h5>Edit Menu Item: {editingItem.name}</h5>
+
                         <Input
                           type="text"
                           placeholder="Name"
@@ -300,17 +318,19 @@ const AdminPanel = () => {
                             })
                           }
                         />
+
                         <Input
-                          type="text"
+                          type="number"
                           placeholder="Price"
                           value={editingItem.price}
                           onChange={(e) =>
                             setEditingItem({
                               ...editingItem,
-                              price: e.target.value,
+                              price: parseFloat(e.target.value) || 0,
                             })
                           }
                         />
+
                         <Input
                           type="text"
                           placeholder="Category"
@@ -322,6 +342,7 @@ const AdminPanel = () => {
                             })
                           }
                         />
+
                         <Input
                           type="file"
                           accept="image/*"
@@ -330,10 +351,46 @@ const AdminPanel = () => {
                               setEditingItem({
                                 ...editingItem,
                                 imageFile: e.target.files[0],
+                                image_url: editingItem.image_url, // ✅ Додадено за да не исчезне сликата
                               });
                             }
                           }}
                         />
+
+                        {/* ✅ Поле за состојки во еден input */}
+                        <Input
+                          type="text"
+                          placeholder="Ingredients (comma-separated)"
+                          value={
+                            editingItem.ingredients
+                              ? editingItem.ingredients.join(", ")
+                              : ""
+                          }
+                          onChange={(e) =>
+                            setEditingItem({
+                              ...editingItem,
+                              ingredients: e.target.value
+                                .split(",")
+                                .map((ing) => ing.trim())
+                                .filter((ing) => ing.length > 0), // ✅ Отстранување на празни елементи
+                            })
+                          }
+                        />
+
+                        {/* Додавање на ново `ingredient` поле */}
+                        <Button
+                          onClick={() =>
+                            setEditingItem({
+                              ...editingItem,
+                              ingredients: [
+                                ...(editingItem.ingredients || []),
+                                "",
+                              ],
+                            })
+                          }
+                        >
+                          ➕ Додади состојка
+                        </Button>
 
                         <ButtonRow>
                           <Button

@@ -1,5 +1,5 @@
+// AdminPanel.utils.ts
 import axios from "axios";
-
 // Интерфејси
 export interface Restaurant {
   id: number;
@@ -16,6 +16,8 @@ export interface MenuItem {
   name: string;
   price: string;
   category: string;
+  ingredients?: string[]; // ✅ Додади `ingredients`
+
   image_url?: string;
   imageFile?: File | null;
 }
@@ -33,8 +35,21 @@ export const fetchRestaurants = async (): Promise<Restaurant[]> => {
           const menuResponse = await axios.get<MenuItem[]>(
             `http://localhost:5000/restaurants/${restaurant.id}/menu`
           );
-          return { ...restaurant, menuItems: menuResponse.data || [] };
-        } catch {
+
+          // ✅ Осигурај се дека `ingredients` секогаш е низа и отстранува `null`
+          const menuItemsWithIngredients = menuResponse.data.map((item) => ({
+            ...item,
+            ingredients: Array.isArray(item.ingredients)
+              ? item.ingredients.filter((ing) => typeof ing === "string")
+              : [], // Ако `ingredients` не е низа, врати празна низа
+          }));
+
+          return { ...restaurant, menuItems: menuItemsWithIngredients };
+        } catch (error) {
+          console.error(
+            `❌ Грешка при вчитување на мени за ресторан ID: ${restaurant.id}`,
+            error
+          );
           return { ...restaurant, menuItems: [] };
         }
       })
@@ -42,7 +57,7 @@ export const fetchRestaurants = async (): Promise<Restaurant[]> => {
 
     return restaurantsWithMenu;
   } catch (error) {
-    console.error("Error fetching restaurants:", error);
+    console.error("❌ Грешка при вчитување на ресторани:", error);
     return [];
   }
 };
@@ -112,18 +127,42 @@ export const updateMenuItem = async (
   formData: FormData
 ) => {
   try {
-    await axios.put(
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      console.error("❌ Нема пронајден токен!");
+      throw new Error("Unauthorized: No token found");
+    }
+
+    console.log("📤 Испраќам барање за ажурирање:", menuItemId);
+    console.log("🔑 Токен:", token);
+
+    const response = await axios.put(
       `http://localhost:5000/menu_items/${menuItemId}`,
       formData,
       {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
       }
     );
-  } catch (error) {
-    console.error("Error updating menu item:", error);
+
+    console.log("✅ Успешно ажурирање:", response.data);
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      console.error(
+        "❌ Грешка при ажурирање мени предмет:",
+        error.response.data
+      );
+      if (error.response.status === 403) {
+        alert("Немате дозвола за ажурирање на мени предмет!");
+      }
+    } else {
+      console.error("❌ Неочекувана грешка:", error);
+    }
+    throw error;
   }
 };
 

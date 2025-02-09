@@ -6,29 +6,25 @@ import jwt from "jsonwebtoken";
 import { sendAdminNotification, sendUserVerificationEmail } from "./mailer.js";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
-import pkg from "pg";
-const { Client } = pkg;
-import crypto from "crypto"; // или import { v4 as uuidv4 } from 'uuid';
-import { sendResetPasswordEmail } from "./mailer.js";
-import { sendVerificationEmail } from "./mailer.js";
+import pkg from "pg"; // PostgreSQL модул
+const { Pool } = pkg;
+import crypto from "crypto";
+import { sendResetPasswordEmail, sendVerificationEmail } from "./mailer.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import e from "express";
-import { env } from "process";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 const port = 5000;
 
-// -----------------------------------------------------------------------------
-// PostgreSQL client configuration
-const client = new Client({
+// ===================== PG Pool =====================
+const pool = new Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
   database: process.env.DB_NAME,
@@ -36,23 +32,24 @@ const client = new Client({
   port: process.env.DB_PORT,
 });
 
-client
-  .connect()
-  .then(() => console.log("Connected to PostgreSQL"))
-  .catch((err) => console.error("Connection error", err.stack));
+// Едноставна проверка:
+pool
+  .query("SELECT NOW()")
+  .then(() => console.log("✅ Connected to PostgreSQL"))
+  .catch((err) => console.error("❌ Connection error", err.stack));
 
-// -----------------------------------------------------------------------------
-// Middleware
+// ===================== Middleware =====================
 app.use(
   cors({
     origin: ["http://localhost:5173", "http://localhost:5174"],
-    credentials: true, // Дозволи cross-site cookies
+    credentials: true,
   })
 );
-
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.static("public"));
+
+// ===================== Multer =====================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "public/uploads/");
@@ -61,169 +58,19 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + path.extname(file.originalname));
   },
 });
-
 const upload = multer({
   storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-const { Pool } = pkg;
-
-// ✅ Конекција со PostgreSQL
-const pool = new Pool({
-  user: env.DB_USER,
-  host: env.DB_HOST,
-  database: env.DB_NAME,
-  password: env.DB_PASSWORD,
-  port: env.DB_PORT, // Стандардниот порт за PostgreSQL
-});
-export default pool;
-
-// -----------------------------------------------------------------------------
-// Route: registerexpr
-// -----------------------------------------------------------------------------
-app.post("/register", async (req, res) => {
-  const { name, lastname, email, phone, password, adminCode } = req.body;
-
-  try {
-    if (!name || !lastname || !email || !phone || !password) {
-      return res.status(400).send("All fields are required.");
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Проверка дали внесениот код е точен
-    const isAdmin = adminCode === process.env.ADMIN_CODE; // Чита од .env
-
-    // Генерираме верификациски токен
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
-
-    // Снимаме корисник со is_verified = false + дали е админ
-    const insertQuery = `
-      INSERT INTO users
-        (name, lastname, email, phone, password, is_verified, verification_token, token_expires, is_admin)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `;
-    await client.query(insertQuery, [
-      name,
-      lastname,
-      email,
-      phone,
-      hashedPassword,
-      false,
-      verificationToken,
-      tokenExpires,
-      isAdmin, // Додава администраторски статус
-    ]);
-
-    // 1) Верификациски имејл за корисникот
-    const verifyURL = `http://localhost:5000/verify?token=${verificationToken}`;
-    await sendUserVerificationEmail({
-      name,
-      email,
-      verifyURL,
-    });
-
-    res.status(201).send("User registered. Check your email to verify.");
-  } catch (error) {
-    console.error("Error registering user:", error);
-    if (error.code === "23505") {
-      return res.status(400).send("Email or phone already exists.");
-    }
-    res.status(500).send("Error registering user.");
-  }
-});
-
-// -----------------------------------------------------------------------------
-// Route: login
-// -----------------------------------------------------------------------------
-app.post("/login", async (req, res) => {
-  const { emailOrPhone, password } = req.body;
-
-  if (!emailOrPhone || !password) {
-    return res.status(400).send("All fields are required.");
-  }
-
-  try {
-    const result = await client.query(
-      "SELECT * FROM users WHERE email = $1 OR phone = $1",
-      [emailOrPhone]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).send("User not found.");
-    }
-
-    const user = result.rows[0];
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).send("Invalid password.");
-    }
-
-    if (!user.is_verified) {
-      return res.status(403).send("Please verify your email first.");
-    }
-
-    // Генерирање на токен
-    const token = jwt.sign(
-      { id: user.id, email: user.email, is_admin: user.is_admin },
-      process.env.JWT_SECRET || "default_secret_key",
-      { expiresIn: "2h" }
-    );
-
-    // Испрати го токенот како cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      maxAge: 60 * 60 * 1000, // 1 час
-      sameSite: "None",
-      secure: true, // Ова мора да биде `true` ако користиш HTTPS
-    });
-
-    // Врати ги податоците и токенот
-    return res.json({
-      message: "Login successful.",
-      token, // Додај токен во JSON одговорот
-      user: {
-        id: user.id,
-        name: user.name,
-        lastname: user.lastname,
-        email: user.email,
-        phone: user.phone,
-        is_admin: user.is_admin, // ✅ Осигурај се дека се враќа
-      },
-    });
-  } catch (error) {
-    console.error("Error logging in user:", error);
-    return res.status(500).send("Error logging in user.");
-  }
-});
-
-// -----------------------------------------------------------------------------
-// Route: get all restaurants (пример)
-// -----------------------------------------------------------------------------
-app.get("/restaurants", async (req, res) => {
-  try {
-    const result = await client.query("SELECT * FROM restaurants");
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching restaurants:", error);
-    res.status(500).send("Error fetching restaurants");
-  }
-});
-
-// -----------------------------------------------------------------------------
-// Middleware за проверка на токен (JWT)
-// -----------------------------------------------------------------------------
+// ===================== JWT Middleware =====================
 const authenticateToken = (req, res, next) => {
   const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
-
   if (!token) {
     return res
       .status(401)
       .json({ message: "Access Denied. No token provided." });
   }
-
   jwt.verify(
     token,
     process.env.JWT_SECRET || "default_secret_key",
@@ -238,16 +85,167 @@ const authenticateToken = (req, res, next) => {
   );
 };
 
-// -----------------------------------------------------------------------------
-// Route: profile (пример) - потребен е JWT
-// -----------------------------------------------------------------------------
+const authenticateAdmin = (req, res, next) => {
+  console.log("🔍 Проверка на корисник:", req.user);
+
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Access denied. Admins only." });
+  }
+  next();
+};
+
+// ===================== Routes =====================
+
+// -------- Register --------
+app.post("/register", async (req, res) => {
+  const {
+    name,
+    lastname,
+    email,
+    phone,
+    password,
+    role,
+    adminCode,
+    deliveryCode,
+  } = req.body;
+
+  try {
+    if (!name || !lastname || !email || !phone || !password) {
+      return res.status(400).send("Сите полиња се задолжителни.");
+    }
+    if (!["customer", "admin", "delivery"].includes(role)) {
+      return res.status(400).send("Невалидна улога.");
+    }
+    if (role === "admin" && adminCode !== process.env.ADMIN_CODE) {
+      return res
+        .status(403)
+        .send("Невалиден админ код! Корисникот НЕ Е регистриран.");
+    }
+    if (role === "delivery" && deliveryCode !== process.env.DELIVERY_CODE) {
+      return res
+        .status(403)
+        .send("Невалиден код за доставувач! Корисникот НЕ Е регистриран.");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    const insertQuery = `
+      INSERT INTO users
+        (name, lastname, email, phone, password, is_verified, verification_token, token_expires, role)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `;
+    await pool.query(insertQuery, [
+      name,
+      lastname,
+      email,
+      phone,
+      hashedPassword,
+      false,
+      verificationToken,
+      tokenExpires,
+      role,
+    ]);
+
+    // Испраќање верификациски email
+    const verifyURL = `http://localhost:5000/verify?token=${verificationToken}`;
+    await sendUserVerificationEmail({ name, email, verifyURL });
+
+    res
+      .status(201)
+      .send("Корисникот е регистриран. Проверете го емаилот за верификација.");
+  } catch (error) {
+    console.error("Error registering user:", error);
+    if (error.code === "23505") {
+      return res.status(400).send("Email или телефон веќе постои.");
+    }
+    res.status(500).send("Грешка при регистрација.");
+  }
+});
+
+// -------- Login --------
+app.post("/login", async (req, res) => {
+  const { emailOrPhone, password } = req.body;
+  if (!emailOrPhone || !password) {
+    return res.status(400).send("All fields are required.");
+  }
+
+  try {
+    const result = await pool.query(
+      "SELECT id, name, lastname, email, phone, password, role, is_admin, is_verified FROM users WHERE email = $1 OR phone = $1",
+      [emailOrPhone]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).send("User not found.");
+    }
+
+    const user = result.rows[0];
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).send("Invalid password.");
+    }
+    if (!user.is_verified) {
+      return res.status(403).send("Please verify your email first.");
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        is_admin: user.is_admin, // ✅ Осигурај се дека ова е тука
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    // Испрати го токенот како cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000,
+      sameSite: "None",
+      secure: true,
+    });
+
+    return res.json({
+      message: "Login successful.",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        lastname: user.lastname,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        is_admin: user.is_admin,
+        is_verified: user.is_verified,
+      },
+    });
+  } catch (error) {
+    console.error("Error logging in user:", error);
+    return res.status(500).send("Error logging in user.");
+  }
+});
+
+// -------- GET /restaurants --------
+app.get("/restaurants", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM restaurants");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching restaurants:", error);
+    res.status(500).send("Error fetching restaurants");
+  }
+});
+
+// -------- Profile --------
 app.get("/profile", authenticateToken, async (req, res) => {
   try {
-    const result = await client.query(
+    const result = await pool.query(
       "SELECT name, lastname, email, phone FROM users WHERE id = $1",
       [req.user.id]
     );
-
     if (result.rows.length > 0) {
       res.json(result.rows[0]);
     } else {
@@ -259,30 +257,21 @@ app.get("/profile", authenticateToken, async (req, res) => {
   }
 });
 
-// -----------------------------------------------------------------------------
-// Route: restaurants/:id/menu (пример)
-// -----------------------------------------------------------------------------
+// -------- GET /restaurants/:id/menu --------
 app.get("/restaurants/:id/menu", async (req, res) => {
   const restaurantId = req.params.id;
-
   try {
-    // Прво провери дали постои самиот ресторан
-    const restaurantExists = await client.query(
+    const restaurantExists = await pool.query(
       "SELECT id FROM restaurants WHERE id = $1",
       [restaurantId]
     );
     if (restaurantExists.rows.length === 0) {
       return res.status(404).send("Restaurant not found.");
     }
-
-    // Потоа земи ги мени предметите
-    const menuResult = await client.query(
+    const menuResult = await pool.query(
       "SELECT * FROM menu_items WHERE restaurant_id = $1",
       [restaurantId]
     );
-
-    // Нема потреба да враќаме 404 ако нема ниту еден menu_item
-    // Едноставно праќаме []
     return res.json(menuResult.rows);
   } catch (error) {
     console.error("Error fetching menu items:", error);
@@ -290,33 +279,32 @@ app.get("/restaurants/:id/menu", async (req, res) => {
   }
 });
 
-// -----------------------------------------------------------------------------
-// Route: verify email (GET /verify?token=...)
-// -----------------------------------------------------------------------------
+// -------- GET /verify?token=... --------
 app.get("/verify", async (req, res) => {
   const { token } = req.query;
-
   if (!token) {
     return res.status(400).send("Missing token.");
   }
 
   try {
-    const result = await client.query(
+    const result = await pool.query(
       "SELECT * FROM users WHERE verification_token = $1",
       [token]
     );
-
     if (result.rows.length === 0) {
       return res.status(400).send("Invalid or expired token!");
     }
-
     const user = result.rows[0];
-    if (user.token_expires && user.token_expires < new Date()) {
+    if (user.token_expires && new Date(user.token_expires) < new Date()) {
       return res.status(400).send("Token is expired!");
     }
+    if (!user.role) {
+      await pool.query("UPDATE users SET role = 'customer' WHERE id = $1", [
+        user.id,
+      ]);
+    }
 
-    // Ажурирајте го корисникот како верификуван
-    await client.query(
+    await pool.query(
       `UPDATE users
        SET is_verified = $1,
            verification_token = NULL,
@@ -325,53 +313,48 @@ app.get("/verify", async (req, res) => {
       [true, user.id]
     );
 
-    // 2) Известување до админот дека корисникот потврдил е-пошта
-    await sendAdminNotification({
-      name: user.name,
-      lastname: user.lastname,
-      email: user.email,
-      phone: user.phone,
-    });
+    if (typeof sendAdminNotification === "function") {
+      await sendAdminNotification({
+        name: user.name,
+        lastname: user.lastname,
+        email: user.email,
+        phone: user.phone,
+      });
+    }
 
     res.send("Вашата е-пошта е успешно потврдена! Сега можете да се најавите.");
   } catch (error) {
-    console.error("Error verifying email:", error);
+    console.error("❌ Error verifying email:", error);
     res.status(500).send("Internal server error.");
   }
 });
 
+// -------- POST /forgot-password --------
 app.post("/forgot-password", async (req, res) => {
   const { emailOrPhone } = req.body;
-
   if (!emailOrPhone) {
     return res.status(400).send("Email or phone is required.");
   }
 
   try {
-    // Проверка дали корисникот постои
-    const result = await client.query(
+    const result = await pool.query(
       "SELECT * FROM users WHERE email = $1 OR phone = $1",
       [emailOrPhone]
     );
-
     if (result.rows.length === 0) {
       return res.status(404).send("User not found.");
     }
 
     const user = result.rows[0];
-
-    // Генерирај токен за ресетирање на лозинка
     const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // Валидност: 1 час
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
 
-    await client.query(
+    await pool.query(
       "UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3",
       [resetToken, resetExpires, user.id]
     );
 
     const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
-
-    // Испраќање на емаил со ресет линкот
     await sendResetPasswordEmail(user.email, resetLink);
 
     res.send("Reset link sent to your email.");
@@ -381,50 +364,43 @@ app.post("/forgot-password", async (req, res) => {
   }
 });
 
+// -------- POST /reset-password --------
 app.post("/reset-password", async (req, res) => {
   const { token, password } = req.body;
-
   if (!token || !password) {
     return res.status(400).send("Token and new password are required.");
   }
 
   try {
-    // Проверка дали токенот постои и не е истечен
-    const result = await client.query(
+    const result = await pool.query(
       "SELECT * FROM users WHERE reset_token = $1 AND reset_expires > NOW()",
       [token]
     );
-
     if (result.rows.length === 0) {
       return res.status(400).send("Invalid or expired token.");
     }
-
     const user = result.rows[0];
-
-    // Хаширај ја новата лозинка
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Ажурирај ја лозинката во базата и избриши го токенот
-    await client.query(
+    await pool.query(
       "UPDATE users SET password = $1, reset_token = NULL, reset_expires = NULL WHERE id = $2",
       [hashedPassword, user.id]
     );
-
     res.send("Password reset successful.");
   } catch (error) {
     console.error("🔥 Error resetting password:", error);
     res.status(500).send("Internal server error.");
   }
 });
-// profile/update-request
+
+// -------- POST /profile/update-request --------
 app.post("/profile/update-request", authenticateToken, async (req, res) => {
   const userId = req.user.id;
   const { firstName, lastName, email, phone } = req.body;
 
   try {
     const confirmToken = crypto.randomBytes(32).toString("hex");
-
-    await client.query(
+    await pool.query(
       "UPDATE users SET pending_changes = $1, confirm_token = $2 WHERE id = $3",
       [
         JSON.stringify({ firstName, lastName, email, phone }),
@@ -434,7 +410,6 @@ app.post("/profile/update-request", authenticateToken, async (req, res) => {
     );
 
     const confirmURL = `http://localhost:5173/confirm-changes?token=${confirmToken}`;
-
     await sendVerificationEmail(email, confirmURL);
 
     res.send("Пратена е потврда на вашиот емаил.");
@@ -444,37 +419,31 @@ app.post("/profile/update-request", authenticateToken, async (req, res) => {
   }
 });
 
-// profile/confirm-changes
+// -------- GET /profile/confirm-changes --------
 app.get("/profile/confirm-changes", async (req, res) => {
   const { token } = req.query;
-
   if (!token) {
     console.error("Missing token in request.");
     return res.status(400).send("Недостасува токен.");
   }
 
   try {
-    // Проверуваме дали токенот постои во базата
-    const result = await client.query(
+    const result = await pool.query(
       "SELECT * FROM users WHERE confirm_token = $1",
       [token]
     );
-
     if (result.rows.length === 0) {
       console.error("Invalid or expired token.");
       return res.status(400).send("Невалиден или истечен токен!");
     }
 
     const user = result.rows[0];
-
-    // Проверка дали pending_changes е веќе JSON објект
     const pendingChanges =
       typeof user.pending_changes === "string"
         ? JSON.parse(user.pending_changes)
         : user.pending_changes;
 
-    // Ажурирање на корисничките податоци
-    await client.query(
+    await pool.query(
       "UPDATE users SET name = $1, lastname = $2, email = $3, phone = $4, pending_changes = NULL, confirm_token = NULL WHERE id = $5",
       [
         pendingChanges.firstName,
@@ -491,26 +460,19 @@ app.get("/profile/confirm-changes", async (req, res) => {
     res.status(500).send("Internal server error.");
   }
 });
-const authenticateAdmin = (req, res, next) => {
-  if (!req.user || !req.user.is_admin) {
-    return res.status(403).json({ message: "Access denied. Admins only." });
-  }
-  next();
-};
+
+// -------- DELETE /restaurants/:id (Admin + транзакција) --------
 app.delete(
   "/restaurants/:id",
   authenticateToken,
   authenticateAdmin,
   async (req, res) => {
     const { id } = req.params;
-
-    // Земаш connection од Pool
-    const clientDB = await pool.connect();
+    const clientDB = await pool.connect(); // транзакција
 
     try {
       await clientDB.query("BEGIN");
 
-      // 1) Проверуваме дали ресторанот постои
       const result = await clientDB.query(
         "SELECT image_url FROM restaurants WHERE id = $1",
         [id]
@@ -521,8 +483,6 @@ app.delete(
       }
 
       const restaurantImageUrl = result.rows[0].image_url;
-
-      // 2) Земи ги сите menu_items
       const menuImagesResult = await clientDB.query(
         "SELECT image_url FROM menu_items WHERE restaurant_id = $1",
         [id]
@@ -531,29 +491,21 @@ app.delete(
         .map((row) => row.image_url)
         .filter(Boolean);
 
-      // 3) Избриши menu_items
       await clientDB.query("DELETE FROM menu_items WHERE restaurant_id = $1", [
         id,
       ]);
-
-      // 4) Избриши restaurants
       await clientDB.query("DELETE FROM restaurants WHERE id = $1", [id]);
 
-      // 5) Заврши транзакција (COMMIT) – операции во базата се успешно завршени
       await clientDB.query("COMMIT");
 
-      // 6) Сега избриши ги датотеките од дискот
-      // (дури после COMMIT, за да сме сигурни дека базата е ажурирана)
-
-      // Ако има слика за ресторанот, избриши ја
+      // Сега избриши ги датотеките
       if (restaurantImageUrl) {
         const restaurantImagePath = path.join(
           __dirname,
           "public",
           "uploads",
-          path.basename(restaurantImageUrl) // Осигурај се дека не користи цела патека
+          path.basename(restaurantImageUrl)
         );
-
         if (fs.existsSync(restaurantImagePath)) {
           fs.unlink(restaurantImagePath, (err) => {
             if (err) {
@@ -566,8 +518,6 @@ app.delete(
           console.warn("⚠️ Restaurant image not found:", restaurantImagePath);
         }
       }
-
-      // Мену слики:
       menuImages.forEach((imageUrl) => {
         const menuImagePath = path.join(
           __dirname,
@@ -575,7 +525,6 @@ app.delete(
           "uploads",
           path.basename(imageUrl)
         );
-
         if (fs.existsSync(menuImagePath)) {
           fs.unlink(menuImagePath, (err) => {
             if (err) {
@@ -589,22 +538,20 @@ app.delete(
         }
       });
 
-      // 7) Врати успешен одговор
       res.json({
         message: "Restaurant and its menu items deleted successfully.",
       });
     } catch (error) {
-      // Ако нешто тргне наопаку, правиме ROLLBACK на базата
       await clientDB.query("ROLLBACK");
       console.error("❌ Error deleting restaurant:", error);
       res.status(500).json({ message: "Error deleting restaurant." });
     } finally {
-      // МНОГУ ВАЖНО: ослободи ја конекцијата кон базата
       clientDB.release();
     }
   }
 );
 
+// -------- DELETE /menu_items/:id (Admin) --------
 app.delete(
   "/menu_items/:id",
   authenticateToken,
@@ -612,7 +559,7 @@ app.delete(
   async (req, res) => {
     try {
       const query = "DELETE FROM menu_items WHERE id = $1 RETURNING *";
-      const result = await client.query(query, [req.params.id]);
+      const result = await pool.query(query, [req.params.id]);
       if (result.rows.length === 0) {
         return res.status(404).json({ message: "Menu item not found." });
       }
@@ -624,33 +571,31 @@ app.delete(
   }
 );
 
+// -------- POST /restaurants (Admin) --------
 app.post(
   "/restaurants",
   authenticateToken,
   authenticateAdmin,
   upload.fields([
-    { name: "image", maxCount: 1 }, // ✅ Главна слика за ресторанот
-    { name: "menuImages", maxCount: 10 }, // ✅ До 10 слики за мени предмети
+    { name: "image", maxCount: 1 },
+    { name: "menuImages", maxCount: 10 },
   ]),
   async (req, res) => {
     try {
       const { name, cuisine, working_hours, menuItems } = req.body;
-
       if (!name || !cuisine || !working_hours) {
         return res.status(400).json({ message: "All fields are required." });
       }
-
       const image_url = req.files["image"]
         ? `/uploads/${req.files["image"][0].filename}`
         : null;
 
-      // 1) Прво вметни го ресторанот
       const restaurantQuery = `
         INSERT INTO restaurants (name, cuisine, image_url, working_hours)
         VALUES ($1, $2, $3, $4)
         RETURNING id
       `;
-      const restaurantResult = await client.query(restaurantQuery, [
+      const restaurantResult = await pool.query(restaurantQuery, [
         name,
         cuisine,
         image_url,
@@ -658,7 +603,6 @@ app.post(
       ]);
       const restaurantId = restaurantResult.rows[0].id;
 
-      // 2) Ако имаме 'menuItems' во body, парсирај ги и вметни ги во menu_items
       if (menuItems) {
         let parsedMenu;
         try {
@@ -666,23 +610,17 @@ app.post(
         } catch (error) {
           return res.status(400).json({ message: "Invalid menu format." });
         }
-
         if (!Array.isArray(parsedMenu)) {
           return res
             .status(400)
             .json({ message: "Menu items must be an array." });
         }
-
-        // ✅ ОВДЕ треба да го ставиш map(...) + Promise.all(...)
-        // Наместо forEach(...) { client.query(...) }, користи го овој код:
         const insertPromises = parsedMenu.map((item, index) => {
           const menuImage =
             req.files["menuImages"] && req.files["menuImages"][index]
               ? `/uploads/${req.files["menuImages"][index].filename}`
               : null;
-
-          // ВРАЌАШ Promise (client.query...) за секој item
-          return client.query(
+          return pool.query(
             `
               INSERT INTO menu_items
                 (restaurant_id, name, price, image_url, category)
@@ -691,12 +629,8 @@ app.post(
             [restaurantId, item.name, item.price, menuImage, item.category]
           );
         });
-
-        // ❗ Важно: тука „чекаш“ сите промиси да завршат пред да вратиш одговор
         await Promise.all(insertPromises);
       }
-
-      // 3) Ако сè прошло добро, врати одговор
       res
         .status(201)
         .json({ message: "Restaurant and menu added successfully." });
@@ -707,6 +641,7 @@ app.post(
   }
 );
 
+// -------- PUT /restaurants/:id --------
 app.put("/restaurants/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { name, cuisine, working_hours } = req.body;
@@ -725,11 +660,9 @@ app.put("/restaurants/:id", upload.single("image"), async (req, res) => {
       "UPDATE restaurants SET name=$1, cuisine=$2, working_hours=$3, image_url=COALESCE($4, image_url) WHERE id=$5 RETURNING *",
       [name, cuisine, working_hours, image_url, id]
     );
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Restaurant not found in DB" });
     }
-
     res.json(result.rows[0]);
   } catch (error) {
     console.error("Error updating restaurant:", error);
@@ -737,33 +670,29 @@ app.put("/restaurants/:id", upload.single("image"), async (req, res) => {
   }
 });
 
+// -------- PUT /menu_items/:id --------
 app.put(
   "/menu_items/:id",
   authenticateToken,
   authenticateAdmin,
-  upload.single("image"), // Ако дозволуваш ажурирање на слика
+  upload.single("image"),
   async (req, res) => {
     const { id } = req.params;
     const { name, price, category, ingredients, addons } = req.body;
     let imageUrl = null;
 
     try {
-      // 1️⃣ Проверка дали предметот постои во базата
-      const result = await client.query(
+      const result = await pool.query(
         "SELECT image_url FROM menu_items WHERE id = $1",
         [id]
       );
-
       if (result.rows.length === 0) {
         return res.status(404).json({ message: "Menu item not found." });
       }
-
       const existingImageUrl = result.rows[0].image_url;
 
-      // 2️⃣ Ако има нова слика, избриши ја старата
       if (req.file) {
         imageUrl = `/uploads/${req.file.filename}`;
-
         if (existingImageUrl) {
           const oldImagePath = path.join(__dirname, "public", existingImageUrl);
           if (fs.existsSync(oldImagePath)) {
@@ -777,22 +706,20 @@ app.put(
           }
         }
       } else {
-        imageUrl = existingImageUrl; // Ако нема нова слика, користи ја старата
+        imageUrl = existingImageUrl;
       }
-
-      // 3️⃣ Ажурирање на податоците во базата
       const updateQuery = `
-        UPDATE menu_items 
-        SET name = $1, price = $2, category = $3, ingredients = $4, addons = $5, image_url = $6
-        WHERE id = $7
-        RETURNING *`;
+      UPDATE menu_items
+      SET name = $1, price = $2, category = $3, ingredients = $4::text[], addons = $5::text[], image_url = $6
+      WHERE id = $7
+      RETURNING *`;
 
-      const updatedItem = await client.query(updateQuery, [
+      const updatedItem = await pool.query(updateQuery, [
         name,
         price,
         category,
-        ingredients,
-        addons,
+        JSON.parse(ingredients || "[]"), // ✅ Испрати како валидна PostgreSQL низа
+        JSON.parse(addons || "[]"),
         imageUrl,
         id,
       ]);
@@ -800,7 +727,6 @@ app.put(
       if (updatedItem.rows.length === 0) {
         return res.status(404).json({ message: "Menu item update failed." });
       }
-
       res.json({
         message: "Menu item updated successfully.",
         menuItem: updatedItem.rows[0],
@@ -812,17 +738,15 @@ app.put(
   }
 );
 
+// -------- DELETE /restaurants/:id/menu --------
 app.delete(
   "/restaurants/:id/menu",
   authenticateToken,
   authenticateAdmin,
   async (req, res) => {
     const { id } = req.params;
-
     try {
-      await client.query("DELETE FROM menu_items WHERE restaurant_id = $1", [
-        id,
-      ]);
+      await pool.query("DELETE FROM menu_items WHERE restaurant_id = $1", [id]);
       res.json({ message: "All menu items deleted for this restaurant." });
     } catch (error) {
       console.error("Error deleting menu items:", error);
@@ -830,40 +754,35 @@ app.delete(
     }
   }
 );
+
+// -------- POST /restaurants/:id/menu --------
 app.post(
   "/restaurants/:id/menu",
   authenticateToken,
   authenticateAdmin,
-  upload.single("image"), // ако додаваме само 1 слика за еден предмет
+  upload.single("image"),
   async (req, res) => {
-    const { id } = req.params; // ID на ресторанот
-    const { name, price, category } = req.body; // Податоци за meni item
-
+    const { id } = req.params;
+    const { name, price, category } = req.body;
     try {
-      // 1) Проверуваме дали ресторанот постои
-      const checkRestaurant = await client.query(
+      const checkRestaurant = await pool.query(
         "SELECT * FROM restaurants WHERE id = $1",
         [id]
       );
       if (checkRestaurant.rows.length === 0) {
         return res.status(404).json({ message: "Restaurant not found." });
       }
-
-      // 2) Подготвуваме image_url ако има качено слика
       let image_url = null;
       if (req.file) {
         image_url = `/uploads/${req.file.filename}`;
       }
-
-      // 3) Вметни ново мени во базата
-      await client.query(
+      await pool.query(
         `
           INSERT INTO menu_items (restaurant_id, name, price, category, image_url)
           VALUES ($1, $2, $3, $4, $5)
         `,
         [id, name, price, category, image_url]
       );
-
       res.status(201).json({ message: "New menu item added." });
     } catch (error) {
       console.error("Error adding menu item:", error);
@@ -872,9 +791,240 @@ app.post(
   }
 );
 
-// -----------------------------------------------------------------------------
-// Start the server
-// -----------------------------------------------------------------------------
+// -------- POST /orders (пример) --------
+app.post("/orders", authenticateToken, async (req, res) => {
+  const { restaurant_id, total_price, items } = req.body;
+  const user_id = req.user.id;
+  if (!restaurant_id || !total_price || !items || items.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Недостасуваат податоци за нарачката!" });
+  }
+
+  const clientDB = await pool.connect();
+  try {
+    await clientDB.query("BEGIN");
+    const restaurantCheck = await clientDB.query(
+      "SELECT id FROM restaurants WHERE id = $1",
+      [restaurant_id]
+    );
+    if (restaurantCheck.rows.length === 0) {
+      await clientDB.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ message: "Нема поврзан ресторан за оваа нарачка." });
+    }
+    const orderResult = await clientDB.query(
+      "INSERT INTO orders (user_id, restaurant_id, total_price, status) VALUES ($1, $2, $3, 'Примена') RETURNING *",
+      [user_id, restaurant_id, total_price]
+    );
+    const order_id = orderResult.rows[0].id;
+    for (const item of items) {
+      await clientDB.query(
+        "INSERT INTO order_items (order_id, item_id, quantity) VALUES ($1, $2, $3)",
+        [order_id, item.id, item.quantity]
+      );
+    }
+    await clientDB.query("COMMIT");
+    res.status(201).json({
+      message: "Нарачката е успешно креирана!",
+      order: orderResult.rows[0],
+    });
+  } catch (error) {
+    await clientDB.query("ROLLBACK");
+    console.error("❌ Error creating order:", error);
+    res.status(500).json({ message: "Server error" });
+  } finally {
+    clientDB.release();
+  }
+});
+
+// -------- GET /orders (пример: само role=delivery) --------
+app.get("/orders", authenticateToken, async (req, res) => {
+  if (req.user.role !== "delivery") {
+    return res
+      .status(403)
+      .json({ message: "Само доставувачи можат да ги гледаат нарачките!" });
+  }
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders WHERE status IN ('Примена', 'Во подготовка')"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("❌ Error fetching orders:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// -------- GET /me --------
+app.get("/me", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT role FROM users WHERE id = $1", [
+      req.user.id,
+    ]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ role: result.rows[0].role });
+  } catch (error) {
+    console.error("❌ Error fetching user role:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// -------- PUT /orders/:id/accept (delivery only) --------
+app.put("/orders/:id/accept", authenticateToken, async (req, res) => {
+  if (req.user.role !== "delivery") {
+    return res
+      .status(403)
+      .json({ message: "Само доставувачи можат да прифаќаат нарачки!" });
+  }
+  try {
+    const orderResult = await pool.query(
+      "SELECT status FROM orders WHERE id = $1",
+      [req.params.id]
+    );
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ message: "Нарачката не е пронајдена!" });
+    }
+    if (orderResult.rows[0].status !== "Примена") {
+      return res
+        .status(400)
+        .json({ message: "Оваа нарачка веќе е прифатена!" });
+    }
+    await pool.query("UPDATE orders SET status = 'Во достава' WHERE id = $1", [
+      req.params.id,
+    ]);
+    res.json({ message: "Нарачката е прифатена!" });
+  } catch (error) {
+    console.error("❌ Error accepting order:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// -------- GET /my-orders --------
+app.get("/my-orders", authenticateToken, async (req, res) => {
+  try {
+    console.log("📌 Барам нарачки за user_id:", req.user.id);
+
+    // Земаме ги сите нарачки на корисникот
+    const ordersResult = await pool.query(
+      "SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC",
+      [req.user.id]
+    );
+
+    if (ordersResult.rows.length === 0) {
+      return res.json([]); // Ако нема нарачки, врати празен список
+    }
+
+    const orders = ordersResult.rows;
+
+    // Земаме ги сите артикли од нарачките
+    const orderIds = orders.map((order) => order.id);
+    const orderItemsResult = await pool.query(
+      `SELECT oi.order_id, oi.item_id, oi.quantity, oi.item_price, mi.name, mi.image_url
+       FROM order_items oi
+       JOIN menu_items mi ON oi.item_id = mi.id
+       WHERE oi.order_id = ANY($1::int[])`,
+      [orderIds]
+    );
+
+    // Групирај ги артиклите по `order_id`
+    const itemsByOrder = {};
+    orderItemsResult.rows.forEach((item) => {
+      if (!itemsByOrder[item.order_id]) {
+        itemsByOrder[item.order_id] = [];
+      }
+      itemsByOrder[item.order_id].push(item);
+    });
+
+    // Комбинирај ги нарачките со артиклите
+    const ordersWithItems = orders.map((order) => ({
+      ...order,
+      items: itemsByOrder[order.id] || [],
+    }));
+
+    res.json(ordersWithItems);
+  } catch (error) {
+    console.error("❌ Грешка при преземање нарачки:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// -------- POST /orders (друга дефиниција - внимавај да не се судри) --------
+app.post("/orders", authenticateToken, async (req, res) => {
+  const { restaurant_id, total_price, items } = req.body;
+  const user_id = req.user.id;
+
+  if (!restaurant_id || !total_price || !items || items.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Недостасуваат податоци за нарачката!" });
+  }
+
+  const clientDB = await pool.connect();
+  try {
+    await clientDB.query("BEGIN");
+
+    // Проверка дали ресторанот постои
+    const restaurantCheck = await clientDB.query(
+      "SELECT id FROM restaurants WHERE id = $1",
+      [restaurant_id]
+    );
+    if (restaurantCheck.rows.length === 0) {
+      await clientDB.query("ROLLBACK");
+      return res.status(400).json({ message: "Ресторанот не постои!" });
+    }
+
+    // Вметнување на нова нарачка
+    const orderResult = await clientDB.query(
+      "INSERT INTO orders (user_id, restaurant_id, total_price, status, created_at) VALUES ($1, $2, $3, 'Примена', NOW()) RETURNING *",
+      [user_id, restaurant_id, total_price]
+    );
+
+    const order_id = orderResult.rows[0].id;
+
+    // Вметнување на секој item од нарачката во `order_items`
+    const orderItemsQuery = `
+      INSERT INTO order_items (order_id, item_id, quantity, item_price) 
+      VALUES ($1, $2, $3, $4)
+    `;
+
+    for (const item of items) {
+      await clientDB.query(orderItemsQuery, [
+        order_id,
+        item.id,
+        item.quantity,
+        item.price,
+      ]);
+    }
+
+    await clientDB.query("COMMIT");
+
+    // Превземи ги ставките за да ги вратиме како одговор
+    const orderItems = await clientDB.query(
+      "SELECT item_id, quantity, item_price FROM order_items WHERE order_id = $1",
+      [order_id]
+    );
+
+    res.status(201).json({
+      message: "Нарачката е успешно креирана!",
+      order: {
+        ...orderResult.rows[0],
+        items: orderItems.rows,
+      },
+    });
+  } catch (error) {
+    await clientDB.query("ROLLBACK");
+    console.error("❌ Грешка при креирање на нарачката:", error);
+    res.status(500).json({ message: "Серверска грешка." });
+  } finally {
+    clientDB.release();
+  }
+});
+
+// ===================== Start the server =====================
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });

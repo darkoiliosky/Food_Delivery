@@ -10,6 +10,7 @@ interface User {
   phone?: string;
   dob?: string;
   is_admin: boolean; // Додадено поле за администратор
+  role: "customer" | "admin" | "delivery"; // ✅ Додадено `role`
 }
 
 // ✅ Интерфејс за одговор при најава
@@ -64,17 +65,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const response = await axios.post<LoginResponse>(
         "http://localhost:5000/login",
         { emailOrPhone, password },
-        { withCredentials: true } // Додај го ова за да дозволиш cookies
+        { withCredentials: true } // Дозволи cookies ако користиш JWT во cookies
       );
 
       const { token, user } = response.data;
 
-      if (!token) {
-        throw new Error("Token not received from server.");
+      if (!token || !user.role) {
+        // ✅ Проверка дали role постои
+        throw new Error("Token or role missing from server response.");
       }
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
+
+      console.log("✅ Logged in user:", user); // ✅ Додади проверка
 
       setUser(user);
       setIsLoggedIn(true);

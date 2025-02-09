@@ -1,23 +1,23 @@
-// mailer.js (пример)
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 
 dotenv.config();
 
+// Функција за креирање на mail transporter
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER, // ✅ Email од .env
+    pass: process.env.EMAIL_PASS, // ✅ App Password од .env
+  },
+});
+
+// ✅ Известување до администраторот за нов корисник
 export async function sendAdminNotification(userData) {
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "dostavapp@gmail.com", // вашата Gmail
-        pass: "jvqdarpxhbxeelwd", // App Password
-      },
-    });
-
-    // Се испраќа до вас (admin) – dostavapp@gmail.com
     const mailOptions = {
-      from: `"Dostava App" <dostavapp@gmail.com>`,
-      to: "dostavapp@gmail.com", // Admin email
+      from: `"Dostava App" <${process.env.EMAIL_USER}>`, // ✅ Динамичен email испраќач
+      to: process.env.EMAIL_USER, // ✅ Админ email од .env
       subject: "Нов корисник се регистрираше!",
       text: `Корисник со следниве податоци се регистрира:
 Име: ${userData.name} ${userData.lastname}
@@ -25,25 +25,18 @@ export async function sendAdminNotification(userData) {
 Телефон: ${userData.phone}`,
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Error sending admin notification:", error);
+    console.error("❌ Error sending admin notification:", error);
   }
 }
 
+// ✅ Испраќање верификациски email до корисник
 export async function sendUserVerificationEmail(userData) {
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "dostavapp@gmail.com",
-        pass: "jvqdarpxhbxeelwd", // App Password
-      },
-    });
-
     const mailOptions = {
-      from: `"Dostava App" <dostavapp@gmail.com>`,
-      to: userData.email, // корисничка адреса
+      from: `"Dostava App" <${process.env.EMAIL_USER}>`,
+      to: userData.email,
       subject: "Verify your email address",
       text: `Здраво, ${userData.name}!
 
@@ -54,56 +47,46 @@ ${userData.verifyURL}
 `,
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Error sending verification email:", error);
+    console.error("❌ Error sending verification email:", error);
   }
 }
 
+// ✅ Испраќање email за ресетирање на лозинка
 export async function sendResetPasswordEmail(email, resetLink) {
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "dostavapp@gmail.com",
-        pass: "jvqdarpxhbxeelwd",
-      },
-    });
-
     const mailOptions = {
-      from: `"Dostava App" <dostavapp@gmail.com>`,
+      from: `"Dostava App" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Reset Your Password",
-      text: `Click the link below to reset your password:
-      ${resetLink}
-      
-      This link is valid for 1 hour.`,
+      text: `Кликнете на следниов линк за да ја ресетирате вашата лозинка:
+${resetLink}
+
+Овој линк е валиден 1 час.`,
     };
 
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Error sending reset password email:", error);
+    console.error("❌ Error sending reset password email:", error);
   }
 }
 
+// ✅ Испраќање email за потврда на промена на профил
 export async function sendVerificationEmail(email, confirmURL) {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: "dostavapp@gmail.com",
-      pass: "jvqdarpxhbxeelwd",
-    },
-  });
-
-  const mailOptions = {
-    from: `"Dostava App" <dostavapp@gmail.com>`,
-    to: email,
-    subject: "Confirm Profile Changes",
-    text: `Кликнете на следниов линк за да ги потврдите измените:
+  try {
+    const mailOptions = {
+      from: `"Dostava App" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Confirm Profile Changes",
+      text: `Кликнете на следниов линк за да ги потврдите измените:
 ${confirmURL}
 
 Доколку не сте ги направиле овие измени, игнорирајте го овој емаил.`,
-  };
+    };
 
-  await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error("❌ Error sending profile confirmation email:", error);
+  }
 }

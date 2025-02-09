@@ -1,7 +1,7 @@
 import React from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHome, FaShoppingCart, FaUser } from "react-icons/fa";
+import { FaHome, FaShoppingCart, FaUser, FaTruck } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 
 const NavbarContainer = styled.nav`
@@ -59,9 +59,6 @@ const Navbar: React.FC = () => {
     navigate("/login");
   };
 
-  if (isLoggedIn) {
-    console.log("Корисник:", user);
-  }
   return (
     <NavbarContainer>
       <NavLinks>
@@ -71,19 +68,30 @@ const Navbar: React.FC = () => {
         <StyledLink to="/cart">
           <FaShoppingCart /> Cart
         </StyledLink>
+
+        {/* Линк за обични корисници (ако додадеш страница за нарачки) */}
+        {user?.role === "customer" && (
+          <StyledLink to="/my-orders">📦 Моите Нарачки</StyledLink>
+        )}
+
+        {/* Линк за доставувачи */}
+        {user?.role === "delivery" && (
+          <StyledLink to="/my-deliveries">
+            <FaTruck /> Мои Нарачки
+          </StyledLink>
+        )}
+
+        {/* Линк за администратори */}
+        {user?.role === "admin" && (
+          <StyledLink to="/admin">🛠️ Админ Панел</StyledLink>
+        )}
       </NavLinks>
+
       {isLoggedIn ? (
         <>
           <StyledLink to="/profile">
             <FaUser /> {user?.name || "Profile"}
           </StyledLink>
-
-          {/* Ако корисникот е администратор, прикажи линк до Админ Панелот */}
-          {user?.is_admin && (
-            <StyledLink to="/admin" style={{ fontSize: "20px" }}>
-              Админ Панел
-            </StyledLink>
-          )}
 
           <Button onClick={handleLogout}>Logout</Button>
         </>
