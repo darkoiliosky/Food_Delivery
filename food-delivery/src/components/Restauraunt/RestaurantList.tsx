@@ -16,66 +16,73 @@ interface RestaurantListProps {
 
 const RestaurantGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
   padding: 20px;
-  background-color: #f9f9f9;
+  background-color: #f4f4f4;
 `;
 
 const RestaurantCard = styled.div`
   background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s, box-shadow 0.3s;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
 
   &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+    transform: translateY(-8px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
   }
 
   img {
     width: 100%;
-    height: 150px;
+    height: 180px;
     object-fit: cover;
+    transition: transform 0.3s ease-in-out;
+
+    &:hover {
+      transform: scale(1.05);
+    }
   }
 
   h3 {
-    font-size: 1.2rem;
-    color: #333;
-    margin: 10px 15px;
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #222;
+    margin: 15px 20px;
   }
 
   p {
-    margin: 5px 15px;
-    font-size: 0.9rem;
-    color: #666;
+    margin: 5px 20px;
+    font-size: 1rem;
+    color: #555;
   }
 
   .working-hours {
     font-weight: bold;
-    color: #3498db;
+    color: #e74c3c;
+    font-size: 1rem;
   }
 
   .details-button {
     display: block;
-    width: 100%;
+    width: calc(100% - 40px);
     text-align: center;
-    margin: 15px 0;
-    padding: 10px;
+    margin: 15px auto;
+    padding: 12px;
     background-color: #3498db;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     text-decoration: none;
     font-size: 1rem;
     font-weight: bold;
     cursor: pointer;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s, transform 0.2s ease-in-out;
 
     &:hover {
       background-color: #2980b9;
+      transform: scale(1.05);
     }
   }
 `;

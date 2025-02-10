@@ -214,13 +214,13 @@ const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
   return (
     <Container>
       <RestaurantHeader>
-        <img
+        {/* <img
           src={`http://localhost:5000${restaurant.image_url}`}
           alt={restaurant.name}
           onError={(e) => {
             e.currentTarget.src = "/placeholder.jpg";
           }}
-        />
+        /> */}
         <h1>{restaurant.name}</h1>
         <p>{restaurant.cuisine}</p>
         <p className="working-hours">

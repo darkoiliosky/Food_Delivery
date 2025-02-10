@@ -118,6 +118,7 @@ const AdminPanel = () => {
       {editRestaurant ? (
         <>
           <SubHeader>Edit Restaurant</SubHeader>
+
           <FormContainer
             onSubmit={(e) =>
               handleUpdateRestaurant(
@@ -174,6 +175,75 @@ const AdminPanel = () => {
       ) : (
         <>
           <SubHeader>Add New Restaurant</SubHeader>
+          <div>
+            <SubHeader>Menu Items for NEW Restaurant (Optional)</SubHeader>
+            {menuItems.map((item, index) => (
+              <div
+                key={index}
+                style={{ display: "flex", gap: "10px", marginBottom: "10px" }}
+              >
+                <Input
+                  type="text"
+                  placeholder="Dish Name"
+                  value={item.name}
+                  onChange={(e) => {
+                    const newMenu = [...menuItems];
+                    newMenu[index].name = e.target.value;
+                    setMenuItems(newMenu);
+                  }}
+                />
+                <Input
+                  type="number"
+                  placeholder="Price"
+                  value={item.price}
+                  onChange={(e) => {
+                    const newMenu = [...menuItems];
+                    newMenu[index].price = e.target.value;
+                    setMenuItems(newMenu);
+                  }}
+                />
+                <Input
+                  type="text"
+                  placeholder="Category"
+                  value={item.category}
+                  onChange={(e) => {
+                    const newMenu = [...menuItems];
+                    newMenu[index].category = e.target.value;
+                    setMenuItems(newMenu);
+                  }}
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      const newMenu = [...menuItems];
+                      newMenu[index].imageFile = e.target.files[0];
+                      setMenuItems(newMenu);
+                    }
+                  }}
+                />
+                <Button
+                  variant="danger"
+                  onClick={() =>
+                    setMenuItems(menuItems.filter((_, i) => i !== index))
+                  }
+                >
+                  ❌
+                </Button>
+              </div>
+            ))}
+            <Button
+              onClick={() =>
+                setMenuItems([
+                  ...menuItems,
+                  { name: "", price: "", category: "", imageFile: null },
+                ])
+              }
+            >
+              ➕ Add Menu Item (for NEW Restaurant)
+            </Button>
+          </div>
           <FormContainer
             onSubmit={(e) =>
               handleAddRestaurant(
@@ -213,8 +283,8 @@ const AdminPanel = () => {
                 })
               }
             />
+            // tuka
             <Input type="file" accept="image/*" onChange={handleFileChange} />
-
             <Button type="submit">Add Restaurant</Button>
           </FormContainer>
         </>
@@ -506,76 +576,6 @@ const AdminPanel = () => {
           </RestaurantCard>
         ))}
       </RestaurantGrid>
-
-      <div style={{ marginTop: "40px" }}>
-        <SubHeader>Menu Items for NEW Restaurant (Optional)</SubHeader>
-        {menuItems.map((item, index) => (
-          <div
-            key={index}
-            style={{ display: "flex", gap: "10px", marginBottom: "10px" }}
-          >
-            <Input
-              type="text"
-              placeholder="Dish Name"
-              value={item.name}
-              onChange={(e) => {
-                const newMenu = [...menuItems];
-                newMenu[index].name = e.target.value;
-                setMenuItems(newMenu);
-              }}
-            />
-            <Input
-              type="number"
-              placeholder="Price"
-              value={item.price}
-              onChange={(e) => {
-                const newMenu = [...menuItems];
-                newMenu[index].price = e.target.value;
-                setMenuItems(newMenu);
-              }}
-            />
-            <Input
-              type="text"
-              placeholder="Category"
-              value={item.category}
-              onChange={(e) => {
-                const newMenu = [...menuItems];
-                newMenu[index].category = e.target.value;
-                setMenuItems(newMenu);
-              }}
-            />
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  const newMenu = [...menuItems];
-                  newMenu[index].imageFile = e.target.files[0];
-                  setMenuItems(newMenu);
-                }
-              }}
-            />
-            <Button
-              variant="danger"
-              onClick={() =>
-                setMenuItems(menuItems.filter((_, i) => i !== index))
-              }
-            >
-              ❌
-            </Button>
-          </div>
-        ))}
-        <Button
-          onClick={() =>
-            setMenuItems([
-              ...menuItems,
-              { name: "", price: "", category: "", imageFile: null },
-            ])
-          }
-        >
-          ➕ Add Menu Item (for NEW Restaurant)
-        </Button>
-      </div>
     </PanelContainer>
   );
 };

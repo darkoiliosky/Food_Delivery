@@ -15,6 +15,7 @@ export const Header = styled.h2`
   color: #2c3e50;
   font-size: 2.2rem;
   font-weight: bold;
+  color: gre;
 `;
 
 export const SubHeader = styled.h3`
