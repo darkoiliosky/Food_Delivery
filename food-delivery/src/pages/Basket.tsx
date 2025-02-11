@@ -71,10 +71,6 @@ const Basket: React.FC = () => {
   const navigate = useNavigate();
   const cartItems = useSelector((state: RootState) => state.cart.items);
   const [loading, setLoading] = useState(false);
-
-  // Проверка дали постои `restaurant_id` во `cartItems`
-  const restaurantId = cartItems.length > 0 ? cartItems[0].restaurant_id : null;
-
   // Избројување на вкупната цена
   const totalPrice = cartItems.reduce(
     (total, item) => total + item.price * item.quantity,
@@ -120,22 +116,7 @@ const Basket: React.FC = () => {
       navigate("/my-orders");
     } catch (error) {
       console.error("❌ Грешка при нарачка:", error);
-
-      // Подобро обработување на грешките
-      if (error.response) {
-        console.log("❌ Server Error:", error.response.data);
-        alert(
-          error.response.data.message ||
-            "❌ Неуспешна нарачка. Обиди се повторно."
-        );
-      } else if (error.request) {
-        console.log("❌ No Response from Server");
-        alert(
-          "❌ Серверот не одговара. Проверете ја вашата интернет конекција."
-        );
-      } else {
-        alert("❌ Грешка при обработка на нарачката.");
-      }
+      alert("❌ Грешка при нарачка. Ве молиме обидете се повторно.");
     }
     setLoading(false);
   };

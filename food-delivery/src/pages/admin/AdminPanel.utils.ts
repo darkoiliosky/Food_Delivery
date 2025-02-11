@@ -150,19 +150,8 @@ export const updateMenuItem = async (
 
     console.log("✅ Успешно ажурирање:", response.data);
     return response.data;
-  } catch (error: any) {
-    if (error.response) {
-      console.error(
-        "❌ Грешка при ажурирање мени предмет:",
-        error.response.data
-      );
-      if (error.response.status === 403) {
-        alert("Немате дозвола за ажурирање на мени предмет!");
-      }
-    } else {
-      console.error("❌ Неочекувана грешка:", error);
-    }
-    throw error;
+  } catch {
+    console.log("❌ Грешка при ажурирање на мени предмет:");
   }
 };
 

@@ -283,7 +283,7 @@ const AdminPanel = () => {
                 })
               }
             />
-            // tuka
+
             <Input type="file" accept="image/*" onChange={handleFileChange} />
             <Button type="submit">Add Restaurant</Button>
           </FormContainer>
@@ -407,7 +407,9 @@ const AdminPanel = () => {
                           onChange={(e) =>
                             setEditingItem({
                               ...editingItem,
-                              price: parseFloat(e.target.value) || 0,
+                              price: (
+                                parseFloat(e.target.value) || 0
+                              ).toString(),
                             })
                           }
                         />

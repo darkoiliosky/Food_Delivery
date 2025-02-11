@@ -53,6 +53,19 @@ const AcceptButton = styled.button`
     background-color: #217dbb;
   }
 `;
+const Button = styled.button`
+  padding: 8px 12px;
+  background-color: #2ecc71; /* Зелена боја за доставено */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+  &:hover {
+    background-color: #27ae60; /* Потемна зелена при hover */
+  }
+`;
 
 const MyDeliveries: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -66,7 +79,8 @@ const MyDeliveries: React.FC = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
 
-        if (response.data.role !== "delivery") {
+        const data = response.data as { role: string };
+        if (data.role !== "delivery") {
           navigate("/"); // Ако не е доставувач, пренасочи го
         }
       } catch (error) {
@@ -111,14 +125,39 @@ const MyDeliveries: React.FC = () => {
       );
       alert("✅ Успешно ја прифативте нарачката!");
 
-      // ✅ Ажурирање на состојбата без refresh
+      // ✅ Локално ажурирање на статусот
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
-          order.id === orderId ? { ...order, status: "Во подготовка" } : order
+          order.id === orderId ? { ...order, status: "Во достава" } : order
         )
       );
     } catch (error) {
       console.error("❌ Грешка при прифаќање нарачка:", error);
+    }
+  };
+
+  const markAsDelivered = async (orderId: number) => {
+    try {
+      await axios.put(
+        `http://localhost:5000/orders/${orderId}/status`,
+        { status: "Завршена" },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+      alert("Нарачката е успешно означена како Завршена!");
+
+      // ✅ Локално ажурирање на статусот без рефреш
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.id === orderId ? { ...order, status: "Завршена" } : order
+        )
+      );
+    } catch (error) {
+      console.error("❌ Грешка при ажурирање на статус:", error);
+      alert("Неуспешно ажурирање на статусот.");
     }
   };
 
@@ -150,6 +189,11 @@ const MyDeliveries: React.FC = () => {
                 <AcceptButton onClick={() => handleAcceptOrder(order.id)}>
                   🚚 Прими Нарачка
                 </AcceptButton>
+              )}
+              {order.status === "Во достава" && (
+                <Button onClick={() => markAsDelivered(order.id)}>
+                  Означи како доставено
+                </Button>
               )}
             </OrderItem>
           ))}

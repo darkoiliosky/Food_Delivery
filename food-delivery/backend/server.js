@@ -678,7 +678,7 @@ app.put(
   upload.single("image"),
   async (req, res) => {
     const { id } = req.params;
-    const { name, price, category, ingredients, addons } = req.body;
+    let { name, price, category, ingredients, addons } = req.body;
     let imageUrl = null;
 
     try {
@@ -691,6 +691,7 @@ app.put(
       }
       const existingImageUrl = result.rows[0].image_url;
 
+      // ✅ Ако има нова слика, избриши ја старата
       if (req.file) {
         imageUrl = `/uploads/${req.file.filename}`;
         if (existingImageUrl) {
@@ -708,18 +709,42 @@ app.put(
       } else {
         imageUrl = existingImageUrl;
       }
+
+      // ✅ Осигури се дека `price` е број
+      price = parseFloat(price);
+      if (isNaN(price)) {
+        return res.status(400).json({ message: "Invalid price format." });
+      }
+
+      // ✅ Осигури дека `ingredients` и `addons` се правилно парсирани
+      try {
+        ingredients = ingredients ? JSON.parse(ingredients) : [];
+        addons = addons ? JSON.parse(addons) : [];
+      } catch (error) {
+        return res
+          .status(400)
+          .json({ message: "Invalid ingredients or addons format." });
+      }
+
+      // ✅ Осигурај се дека `ingredients` и `addons` се низа
+      if (!Array.isArray(ingredients) || !Array.isArray(addons)) {
+        return res
+          .status(400)
+          .json({ message: "Ingredients and addons must be arrays." });
+      }
+
       const updateQuery = `
-      UPDATE menu_items
-      SET name = $1, price = $2, category = $3, ingredients = $4::text[], addons = $5::text[], image_url = $6
-      WHERE id = $7
-      RETURNING *`;
+        UPDATE menu_items
+        SET name = $1, price = $2, category = $3, ingredients = $4::text[], addons = $5::text[], image_url = $6
+        WHERE id = $7
+        RETURNING *`;
 
       const updatedItem = await pool.query(updateQuery, [
         name,
         price,
         category,
-        JSON.parse(ingredients || "[]"), // ✅ Испрати како валидна PostgreSQL низа
-        JSON.parse(addons || "[]"),
+        ingredients, // ✅ Веќе е низа, нема потреба од `JSON.parse`
+        addons,
         imageUrl,
         id,
       ]);
@@ -900,6 +925,41 @@ app.put("/orders/:id/accept", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("❌ Error accepting order:", error);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.put("/orders/:id/status", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body; // 👈 Прифаќа статус кој ќе се постави
+
+  // ✅ Дозволени статуси
+  const allowedStatuses = [
+    "Примена",
+    "Во подготовка",
+    "Во достава",
+    "Завршена",
+  ];
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({ message: "Invalid status value." });
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE orders SET status = $1 WHERE id = $2 RETURNING *",
+      [status, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Order not found." });
+    }
+
+    res.json({
+      message: `Order status updated to '${status}'.`,
+      order: result.rows[0],
+    });
+  } catch (error) {
+    console.error("❌ Error updating order status:", error);
+    res.status(500).json({ message: "Server error." });
   }
 });
 
