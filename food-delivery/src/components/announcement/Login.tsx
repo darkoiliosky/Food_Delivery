@@ -1,11 +1,11 @@
-// Login
 import React, { useState, ChangeEvent, FormEvent } from "react";
+import axios, { AxiosError } from "axios";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
-import { useAuth } from "../../context/AuthContext";
 import "react-toastify/dist/ReactToastify.css";
 
+/* ----------------- Styled Components ----------------- */
 const Container = styled.div`
   display: flex;
   justify-content: center;
@@ -63,7 +63,8 @@ const StyledButton = styled.button`
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+
+  // Локален state за login form
   const [loginData, setLoginData] = useState({
     emailOrPhone: "",
     password: "",
@@ -77,14 +78,45 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      await login(loginData.emailOrPhone, loginData.password);
-      toast.success("Login successful!");
-      setTimeout(() => {
+      const response = await axios.post("http://localhost:5000/login", {
+        emailOrPhone: loginData.emailOrPhone,
+        password: loginData.password,
+      });
+
+      // Ако е успешен login
+      const { token, user } = response.data;
+
+      // Сними во localStorage
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      // Пренасочи според user.role
+      if (user.role === "admin") {
+        navigate("/admin");
+      } else if (user.role === "restaurant") {
+        navigate("/restaurant-dashboard");
+      } else if (user.role === "delivery") {
+        navigate("/my-deliveries");
+      } else {
         navigate("/");
-      }, 2000);
-    } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Invalid credentials. Please try again.");
+      }
+    } catch (err) {
+      // Проверка на статусот
+      if (axios.isAxiosError(err) && err.response) {
+        const status = err.response.status;
+        if (status === 401) {
+          toast.error("Invalid password!");
+        } else if (status === 403) {
+          toast.error("Please verify your email first!");
+        } else if (status === 404) {
+          toast.error("User not found!");
+        } else {
+          toast.error("Login error. Please try again.");
+        }
+      } else {
+        toast.error("Login error. Please try again.");
+      }
+      console.error("Login error:", err);
     }
   };
 
@@ -112,12 +144,14 @@ const Login: React.FC = () => {
           />
           <StyledButton type="submit">Login</StyledButton>
         </StyledForm>
+
         <p style={{ textAlign: "center", marginTop: "1rem" }}>
           Don't have an account?{" "}
           <Link to="/register" style={{ color: "#3498db", fontWeight: "bold" }}>
             Register here
           </Link>
         </p>
+
         <p style={{ textAlign: "center", marginTop: "1rem" }}>
           <Link
             to="/forgot-password"

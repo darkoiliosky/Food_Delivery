@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
-// ✅ Поправена дефиниција на User (без дупликации)
+// ================== Типови и Интерфејси ==================
 interface User {
   id: number;
   name: string;
@@ -9,77 +9,70 @@ interface User {
   email: string;
   phone?: string;
   dob?: string;
-  is_admin: boolean; // Додадено поле за администратор
-  role: "customer" | "admin" | "delivery"; // ✅ Додадено `role`
+  is_admin: boolean;
+  role: "customer" | "admin" | "delivery" | "restaurant"; // Вклучив "restaurant"
+  is_verified?: boolean;
 }
 
-// ✅ Интерфејс за одговор при најава
 interface LoginResponse {
   token: string;
   user: User;
 }
 
-// ✅ Интерфејс за AuthContext
+// Што ќе содржи контекстот
 interface AuthContextType {
   isLoggedIn: boolean;
   user: User | null;
   setIsLoggedIn: (value: boolean) => void;
   login: (emailOrPhone: string, password: string) => Promise<void>;
+  loginRestaurant?: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
+// Создаваме context (почетно undefined)
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ================== AuthProvider Компонента ==================
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
-  // ✅ Проверка при вчитување на апликацијата дали корисникот е најавен
+  // При mount, проверуваме дали има token/user во localStorage
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
-
     if (storedToken && storedUser) {
       try {
-        const parsedUser: User = JSON.parse(storedUser); // Проба за парсирање на JSON
+        const parsedUser: User = JSON.parse(storedUser);
         setUser(parsedUser);
         setIsLoggedIn(true);
       } catch (error) {
-        console.error("Error parsing user data:", error); // Ако не е валиден JSON
-        localStorage.removeItem("user"); // Избриши невалиден user
-        localStorage.removeItem("token"); // Избриши невалиден токен
+        console.error("Error parsing user data:", error);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
         setIsLoggedIn(false);
         setUser(null);
       }
-    } else {
-      setIsLoggedIn(false);
-      setUser(null);
     }
   }, []);
 
-  // ✅ Функција за најава
+  // ================== login ==================
   const login = async (emailOrPhone: string, password: string) => {
     try {
+      // Обична рута /login
       const response = await axios.post<LoginResponse>(
         "http://localhost:5000/login",
         { emailOrPhone, password },
-        { withCredentials: true } // Дозволи cookies ако користиш JWT во cookies
+        { withCredentials: true }
       );
-
       const { token, user } = response.data;
-
       if (!token || !user.role) {
-        // ✅ Проверка дали role постои
-        throw new Error("Token or role missing from server response.");
+        throw new Error("Token or role missing in server response.");
       }
-
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
-
-      console.log("✅ Logged in user:", user); // ✅ Додади проверка
-
       setUser(user);
       setIsLoggedIn(true);
     } catch (error) {
@@ -88,7 +81,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // ✅ Функција за одјава
+  // ================== loginRestaurant (по желба) ==================
+  const loginRestaurant = async (email: string, password: string) => {
+    try {
+      // Засебна рута /login-restaurant (ако сакате да ја задржите)
+      const response = await axios.post<LoginResponse>(
+        "http://localhost:5000/login-restaurant",
+        { email, password },
+        { withCredentials: true }
+      );
+      const { token, user } = response.data;
+      if (!token || user.role !== "restaurant") {
+        throw new Error("Invalid restaurant login or role mismatch.");
+      }
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      setUser(user);
+      setIsLoggedIn(true);
+    } catch (error) {
+      console.error("Restaurant login error:", error);
+      throw new Error("Неуспешна најава за ресторан.");
+    }
+  };
+
+  // ================== logout ==================
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -96,16 +112,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsLoggedIn(false);
   };
 
+  // ================== Return: Provider ==================
   return (
     <AuthContext.Provider
-      value={{ isLoggedIn, user, setIsLoggedIn, login, logout }}
+      value={{
+        isLoggedIn,
+        user,
+        setIsLoggedIn,
+        login,
+        loginRestaurant,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
 
-// ✅ Hook за користење на AuthContext
+// ================== useAuth Hook ==================
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

@@ -1,11 +1,11 @@
-// Registration
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import axios from "axios";
 import styled from "styled-components";
-import { Link, useNavigate } from "react-router-dom"; // Import за навигација и линкови
+import { Link, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+/* ----------------- Styled Components ----------------- */
 const Container = styled.div`
   display: flex;
   justify-content: center;
@@ -61,37 +61,37 @@ const StyledButton = styled.button`
   }
 `;
 
+/* ----------------- Component ----------------- */
 const Register: React.FC = () => {
   const navigate = useNavigate();
+
+  // Локален state за полињата
   const [formData, setFormData] = useState({
     name: "",
     lastname: "",
     email: "",
     phone: "",
     password: "",
-    role: "customer", // Додај го role со почетна вредност customer
+    role: "customer", // default
     adminCode: "",
-    deliveryCode: "", // ✅ Додадено
+    deliveryCode: "",
+    restaurantCode: "",
   });
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-
     setFormData((prev) => {
-      const updatedFormData = {
-        ...prev,
-        [name]: value,
-      };
-
-      // Ако се менува улогата, избришете ги непотребните полиња
+      const updatedFormData = { ...prev, [name]: value };
+      // ако se menува role, ресетирај другите code полиња
       if (name === "role") {
         updatedFormData.adminCode = value === "admin" ? prev.adminCode : "";
         updatedFormData.deliveryCode =
           value === "delivery" ? prev.deliveryCode : "";
+        updatedFormData.restaurantCode =
+          value === "restaurant" ? prev.restaurantCode : "";
       }
-
       return updatedFormData;
     });
   };
@@ -99,19 +99,23 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (formData.role === "admin" && !formData.adminCode) {
-      toast.error("Admin Code is required for admin registration!");
-      return;
-    }
-
-    if (formData.role === "delivery" && !formData.deliveryCode) {
-      toast.error("Delivery Code is required for delivery registration!");
-      return;
-    }
+    let code = "";
+    if (formData.role === "admin") code = formData.adminCode;
+    else if (formData.role === "delivery") code = formData.deliveryCode;
+    else if (formData.role === "restaurant") code = formData.restaurantCode;
 
     try {
-      await axios.post("http://localhost:5000/register", formData);
-      toast.success("Registration successful!");
+      await axios.post("http://localhost:5000/register", {
+        name: formData.name,
+        lastname: formData.lastname,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: formData.role,
+        code: code,
+      });
+
+      toast.success("Registration successful! Check your email to verify.");
       setTimeout(() => {
         navigate("/login");
       }, 2000);
@@ -126,7 +130,9 @@ const Register: React.FC = () => {
       <ToastContainer />
       <FormWrapper>
         <FormTitle>Register</FormTitle>
+
         <StyledForm onSubmit={handleSubmit}>
+          {/* Name */}
           <StyledInput
             type="text"
             name="name"
@@ -135,6 +141,8 @@ const Register: React.FC = () => {
             onChange={handleChange}
             required
           />
+
+          {/* Last Name */}
           <StyledInput
             type="text"
             name="lastname"
@@ -143,6 +151,8 @@ const Register: React.FC = () => {
             onChange={handleChange}
             required
           />
+
+          {/* Email */}
           <StyledInput
             type="email"
             name="email"
@@ -151,6 +161,8 @@ const Register: React.FC = () => {
             onChange={handleChange}
             required
           />
+
+          {/* Phone */}
           <StyledInput
             type="text"
             name="phone"
@@ -159,6 +171,8 @@ const Register: React.FC = () => {
             onChange={handleChange}
             required
           />
+
+          {/* Password */}
           <StyledInput
             type="password"
             name="password"
@@ -167,8 +181,8 @@ const Register: React.FC = () => {
             onChange={handleChange}
             required
           />
-          {/* Ново поле за админ код (опционално) */}
-          {/* Ако е избран "admin", прикажи Admin Code */}
+
+          {/* Ако role=admin, покажи поле adminCode */}
           {formData.role === "admin" && (
             <StyledInput
               type="password"
@@ -180,7 +194,7 @@ const Register: React.FC = () => {
             />
           )}
 
-          {/* Ако е избран "delivery", прикажи Delivery Code */}
+          {/* Ако role=delivery, покажи поле deliveryCode */}
           {formData.role === "delivery" && (
             <StyledInput
               type="password"
@@ -192,6 +206,19 @@ const Register: React.FC = () => {
             />
           )}
 
+          {/* Ако role=restaurant, покажи поле restaurantCode */}
+          {formData.role === "restaurant" && (
+            <StyledInput
+              type="password"
+              name="restaurantCode"
+              placeholder="Restaurant Code"
+              value={formData.restaurantCode}
+              onChange={handleChange}
+              required
+            />
+          )}
+
+          {/* Dropdown за role */}
           <select
             name="role"
             value={formData.role}
@@ -200,11 +227,13 @@ const Register: React.FC = () => {
           >
             <option value="customer">Customer</option>
             <option value="delivery">Delivery</option>
-            <option value="admin">Admin</option> {/* Додадено */}
+            <option value="admin">Admin</option>
+            <option value="restaurant">Ресторан</option>
           </select>
 
           <StyledButton type="submit">Register</StyledButton>
         </StyledForm>
+
         <p style={{ textAlign: "center", marginTop: "1rem" }}>
           Already have an account?{" "}
           <Link to="/login" style={{ color: "#3498db", fontWeight: "bold" }}>

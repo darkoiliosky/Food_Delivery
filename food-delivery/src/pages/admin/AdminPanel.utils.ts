@@ -1,6 +1,25 @@
 // AdminPanel.utils.ts
 import axios from "axios";
-// Интерфејси
+
+/* ------------------ Типови / Интерфејси ------------------ */
+export interface User {
+  id: number;
+  name: string;
+  lastname: string;
+  role: string;
+  // ... ако имаш други полиња (email, phone и сл.)
+}
+
+export interface MenuItem {
+  id?: number;
+  name: string;
+  price: string;
+  category: string;
+  ingredients?: string[]; // ✅
+  image_url?: string;
+  imageFile?: File | null;
+}
+
 export interface Restaurant {
   id: number;
   name: string;
@@ -9,41 +28,29 @@ export interface Restaurant {
   working_hours: string;
   menuItems?: MenuItem[];
   imageFile?: File | null;
+  // owner_id?: number; // ако ти треба
 }
 
-export interface MenuItem {
-  id?: number;
-  name: string;
-  price: string;
-  category: string;
-  ingredients?: string[]; // ✅ Додади `ingredients`
-
-  image_url?: string;
-  imageFile?: File | null;
-}
-
-// ✅ Функција за земање на сите ресторани + мени
+/* ------------------ 1) Земаме сите ресторани + нивното мени ------------------ */
 export const fetchRestaurants = async (): Promise<Restaurant[]> => {
   try {
     const response = await axios.get<Restaurant[]>(
       "http://localhost:5000/restaurants"
     );
 
+    // За секој ресторан, земи ги menuItems
     const restaurantsWithMenu = await Promise.all(
       response.data.map(async (restaurant) => {
         try {
           const menuResponse = await axios.get<MenuItem[]>(
             `http://localhost:5000/restaurants/${restaurant.id}/menu`
           );
-
-          // ✅ Осигурај се дека `ingredients` секогаш е низа и отстранува `null`
           const menuItemsWithIngredients = menuResponse.data.map((item) => ({
             ...item,
             ingredients: Array.isArray(item.ingredients)
               ? item.ingredients.filter((ing) => typeof ing === "string")
-              : [], // Ако `ingredients` не е низа, врати празна низа
+              : [],
           }));
-
           return { ...restaurant, menuItems: menuItemsWithIngredients };
         } catch (error) {
           console.error(
@@ -62,7 +69,7 @@ export const fetchRestaurants = async (): Promise<Restaurant[]> => {
   }
 };
 
-// ✅ Додавање нов ресторан
+/* ------------------ 2) Add / Update / Delete Restaurant ------------------ */
 export const addRestaurant = async (newRestaurant: FormData) => {
   try {
     await axios.post("http://localhost:5000/restaurants", newRestaurant, {
@@ -76,7 +83,6 @@ export const addRestaurant = async (newRestaurant: FormData) => {
   }
 };
 
-// ✅ Ажурирање ресторан
 export const updateRestaurant = async (id: number, formData: FormData) => {
   try {
     await axios.put(`http://localhost:5000/restaurants/${id}`, formData, {
@@ -90,7 +96,6 @@ export const updateRestaurant = async (id: number, formData: FormData) => {
   }
 };
 
-// ✅ Бришење ресторан
 export const deleteRestaurant = async (id: number) => {
   try {
     await axios.delete(`http://localhost:5000/restaurants/${id}`, {
@@ -103,7 +108,7 @@ export const deleteRestaurant = async (id: number) => {
   }
 };
 
-// ✅ Додавање мени предмет во ресторан
+/* ------------------ 3) Add / Update / Delete Menu Item ------------------ */
 export const addMenuItem = async (restaurantId: number, formData: FormData) => {
   try {
     await axios.post(
@@ -121,22 +126,16 @@ export const addMenuItem = async (restaurantId: number, formData: FormData) => {
   }
 };
 
-// ✅ Ажурирање мени предмет
 export const updateMenuItem = async (
   menuItemId: number,
   formData: FormData
 ) => {
   try {
     const token = localStorage.getItem("token");
-
     if (!token) {
       console.error("❌ Нема пронајден токен!");
       throw new Error("Unauthorized: No token found");
     }
-
-    console.log("📤 Испраќам барање за ажурирање:", menuItemId);
-    console.log("🔑 Токен:", token);
-
     const response = await axios.put(
       `http://localhost:5000/menu_items/${menuItemId}`,
       formData,
@@ -147,7 +146,6 @@ export const updateMenuItem = async (
         },
       }
     );
-
     console.log("✅ Успешно ажурирање:", response.data);
     return response.data;
   } catch {
@@ -155,7 +153,6 @@ export const updateMenuItem = async (
   }
 };
 
-// ✅ Бришење мени предмет
 export const deleteMenuItem = async (menuItemId: number) => {
   try {
     await axios.delete(`http://localhost:5000/menu_items/${menuItemId}`, {
@@ -165,5 +162,39 @@ export const deleteMenuItem = async (menuItemId: number) => {
     });
   } catch (error) {
     console.error("Error deleting menu item:", error);
+  }
+};
+
+/* ------------------ 4) Корисници со улога "restaurant" + Assign Owner ------------------ */
+
+// Претпоставка: имаш backend рута GET /users?role=restaurant
+export const fetchRestaurantUsers = async (): Promise<User[]> => {
+  try {
+    const resp = await axios.get<User[]>(
+      "http://localhost:5000/users?role=restaurant",
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      }
+    );
+    return resp.data;
+  } catch (err) {
+    console.error("Error fetching restaurant users:", err);
+    return [];
+  }
+};
+
+// PUT /restaurants/:restId/assign_owner
+export const assignRestaurantOwner = async (restId: number, userId: number) => {
+  try {
+    await axios.put(
+      `http://localhost:5000/restaurants/${restId}/assign_owner`,
+      { userId },
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      }
+    );
+  } catch (error) {
+    console.error("Error assigning restaurant owner:", error);
+    throw error;
   }
 };

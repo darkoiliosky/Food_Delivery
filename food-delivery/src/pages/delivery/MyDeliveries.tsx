@@ -3,21 +3,18 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import styled from "styled-components";
 
-// Типови за Order
 interface Order {
   id: number;
   status: string;
   total_price: number;
 }
 
-// Styled компоненти
 const Container = styled.div`
   max-width: 800px;
   margin: 40px auto;
   padding: 20px;
   background: white;
   border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 `;
 
 const Title = styled.h2`
@@ -48,22 +45,20 @@ const AcceptButton = styled.button`
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  transition: background-color 0.3s;
   &:hover {
     background-color: #217dbb;
   }
 `;
-const Button = styled.button`
+
+const CompleteButton = styled.button`
   padding: 8px 12px;
-  background-color: #2ecc71; /* Зелена боја за доставено */
+  background-color: #2ecc71;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
   &:hover {
-    background-color: #27ae60; /* Потемна зелена при hover */
+    background-color: #27ae60;
   }
 `;
 
@@ -72,91 +67,80 @@ const MyDeliveries: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
 
+  // Проверка дали корисникот е "delivery"
   useEffect(() => {
     const checkRole = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/me", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        });
-
-        const data = response.data as { role: string };
-        if (data.role !== "delivery") {
-          navigate("/"); // Ако не е доставувач, пренасочи го
-        }
-      } catch (error) {
-        console.error("Error checking role:", error);
-        navigate("/"); // Ако има грешка, врати го на почетна
-      }
-    };
-
-    checkRole();
-  }, [navigate]);
-
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
-      try {
-        const response = await axios.get<Order[]>(
-          "http://localhost:5000/orders",
+        const resp = await axios.get<{ role: string }>(
+          "http://localhost:5000/me",
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
             },
           }
         );
-        setOrders(response.data);
-      } catch (error) {
-        console.error("❌ Error fetching deliveries:", error);
+        if (resp.data.role !== "delivery") {
+          navigate("/");
+        }
+      } catch (err) {
+        console.error("Error checking role:", err);
+        navigate("/");
       }
-      setLoading(false);
     };
+    checkRole();
+  }, [navigate]);
 
+  // Функција за вчитување на нарачки
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const resp = await axios.get<Order[]>("http://localhost:5000/orders", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      setOrders(resp.data);
+    } catch (error) {
+      console.error("❌ Error fetching deliveries:", error);
+    }
+    setLoading(false);
+  };
+
+  // Превземање на нарачките при вчитување на страната
+  useEffect(() => {
     fetchOrders();
   }, []);
 
+  // Прифаќање на нарачка -> статус: "Во достава"
   const handleAcceptOrder = async (orderId: number) => {
     try {
       await axios.put(
-        `http://localhost:5000/orders/${orderId}/accept`,
-        {},
+        `http://localhost:5000/orders/${orderId}/status`,
+        { status: "Во достава" },
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      alert("✅ Успешно ја прифативте нарачката!");
-
-      // ✅ Локално ажурирање на статусот
-      setOrders((prevOrders) =>
-        prevOrders.map((order) =>
-          order.id === orderId ? { ...order, status: "Во достава" } : order
-        )
-      );
+      alert("✅ Успешно ја прифативте нарачката! (Во достава)");
+      fetchOrders(); // Освежи ја листата на нарачки
     } catch (error) {
       console.error("❌ Грешка при прифаќање нарачка:", error);
+      alert("Не може да се прифати!");
     }
   };
 
+  // Испорака -> статус: "Испорачана"
   const markAsDelivered = async (orderId: number) => {
     try {
       await axios.put(
         `http://localhost:5000/orders/${orderId}/status`,
-        { status: "Завршена" },
+        { status: "Испорачана" },
         {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      alert("Нарачката е успешно означена како Завршена!");
-
-      // ✅ Локално ажурирање на статусот без рефреш
-      setOrders((prevOrders) =>
-        prevOrders.map((order) =>
-          order.id === orderId ? { ...order, status: "Завршена" } : order
-        )
-      );
+      alert("✅ Нарачката е успешно испорачана!");
+      fetchOrders(); // Освежи ја листата на нарачки
     } catch (error) {
-      console.error("❌ Грешка при ажурирање на статус:", error);
+      console.error("❌ Error finishing order:", error);
       alert("Неуспешно ажурирање на статусот.");
     }
   };
@@ -165,11 +149,9 @@ const MyDeliveries: React.FC = () => {
     <Container>
       <Title>🚚 Достапни Нарачки</Title>
       {loading ? (
-        <p style={{ textAlign: "center", color: "#7f8c8d" }}>Вчитување...</p>
+        <p>Вчитување...</p>
       ) : orders.length === 0 ? (
-        <p style={{ textAlign: "center", color: "#7f8c8d" }}>
-          Нема достапни нарачки.
-        </p>
+        <p>Нема достапни нарачки.</p>
       ) : (
         <OrderList>
           {orders.map((order) => (
@@ -179,21 +161,23 @@ const MyDeliveries: React.FC = () => {
                   <strong>Нарачка #{order.id}</strong>
                 </p>
                 <p>
-                  📌 <strong>Статус:</strong> {order.status}
+                  <strong>Статус:</strong> {order.status}
                 </p>
                 <p>
-                  💰 <strong>Цена:</strong> {order.total_price} ден.
+                  <strong>Цена:</strong> {order.total_price} ден.
                 </p>
               </div>
-              {order.status === "Примена" && (
+
+              {/* Ако е „Во подготовка“ или „Завршена“ => Прифати, ако е „Во достава“ => Испорачај */}
+              {["Завршена", "Во подготовка"].includes(order.status) && (
                 <AcceptButton onClick={() => handleAcceptOrder(order.id)}>
-                  🚚 Прими Нарачка
+                  Прими Нарачка
                 </AcceptButton>
               )}
               {order.status === "Во достава" && (
-                <Button onClick={() => markAsDelivered(order.id)}>
-                  Означи како доставено
-                </Button>
+                <CompleteButton onClick={() => markAsDelivered(order.id)}>
+                  Испорачај
+                </CompleteButton>
               )}
             </OrderItem>
           ))}

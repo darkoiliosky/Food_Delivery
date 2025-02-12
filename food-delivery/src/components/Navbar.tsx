@@ -1,7 +1,13 @@
 import React from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHome, FaShoppingCart, FaUser, FaTruck } from "react-icons/fa";
+import {
+  FaHome,
+  FaShoppingCart,
+  FaUser,
+  FaTruck,
+  FaUtensils,
+} from "react-icons/fa"; // ✅ Додаден FaUtensils
 import { useAuth } from "../context/AuthContext";
 
 const NavbarContainer = styled.nav`
@@ -69,7 +75,7 @@ const Navbar: React.FC = () => {
           <FaShoppingCart /> Cart
         </StyledLink>
 
-        {/* Линк за обични корисници (ако додадеш страница за нарачки) */}
+        {/* Линк за обични корисници */}
         {user?.role === "customer" && (
           <StyledLink to="/my-orders">📦 Моите Нарачки</StyledLink>
         )}
@@ -78,6 +84,13 @@ const Navbar: React.FC = () => {
         {user?.role === "delivery" && (
           <StyledLink to="/my-deliveries">
             <FaTruck /> Мои Нарачки
+          </StyledLink>
+        )}
+
+        {/* Линк за ресторани */}
+        {user?.role === "restaurant" && (
+          <StyledLink to="/restaurant-dashboard">
+            <FaUtensils /> Мојот Ресторан
           </StyledLink>
         )}
 
@@ -92,7 +105,6 @@ const Navbar: React.FC = () => {
           <StyledLink to="/profile">
             <FaUser /> {user?.name || "Profile"}
           </StyledLink>
-
           <Button onClick={handleLogout}>Logout</Button>
         </>
       ) : (

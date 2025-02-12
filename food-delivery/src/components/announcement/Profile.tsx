@@ -1,10 +1,9 @@
-// Profile
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
-import { useAuth } from "../../context/AuthContext"; // Користи го AuthContext
+import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 
-// Дефинирање на интерфејс за одговорот што го очекуваме од серверот
+// Тип за одговорот што го очекуваме од серверот
 interface UserProfile {
   name: string;
   lastname: string;
@@ -13,6 +12,7 @@ interface UserProfile {
   dob?: string;
 }
 
+// ------------------------ Styled Components ------------------------
 const Container = styled.div`
   font-family: Arial, sans-serif;
   background-color: #f4f4f9;
@@ -79,8 +79,9 @@ const Button = styled.button`
   }
 `;
 
+// ------------------------ Main Component ------------------------
 const Profile: React.FC = () => {
-  const { user } = useAuth(); // Преземи го корисникот од AuthContext
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -90,69 +91,86 @@ const Profile: React.FC = () => {
   });
   const [message, setMessage] = useState("");
 
-  // Пополнување на формата со податоците од корисникот по најавата
+  // 1) Автоматски го вчитуваме профилот откако имаме user + token
   useEffect(() => {
     const fetchUserProfile = async () => {
-      const token = localStorage.getItem("token");
-      if (token) {
-        try {
-          // Поправено: Додадено withCredentials: true
-          const response = await axios.get<UserProfile>(
-            "http://localhost:5000/profile/",
-            {
-              withCredentials: true, // Ова овозможува испраќање на cookies
-            }
-          );
+      // Ако нема user (значи не сме логирани), не fetch-ирај
+      if (!user) return;
 
-          // Поставување на податоците во формата
-          setFormData({
-            firstName: response.data.name || "",
-            lastName: response.data.lastname || "",
-            email: response.data.email || "",
-            phone: response.data.phone || "",
-            password: "", // Лозинката останува празна
-          });
-        } catch (error) {
-          console.error("Error fetching profile:", error);
-          setMessage("Настана грешка при извлекувањето на податоците.");
-        }
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      try {
+        const response = await axios.get<UserProfile>(
+          "http://localhost:5000/profile",
+          {
+            withCredentials: true,
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        // Постави ги податоците во локалниот state
+        setFormData({
+          firstName: response.data.name || "",
+          lastName: response.data.lastname || "",
+          email: response.data.email || "",
+          phone: response.data.phone || "",
+          password: "", // Не го враќаме пасвордот од база, ако треба менување, корисникот внесува нов
+        });
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        setMessage("Настана грешка при извлекувањето на податоците.");
       }
     };
 
     fetchUserProfile();
-  }, [user]); // Ова ќе се активира секој пат кога корисникот ќе се промени
+  }, [user]);
+  // Кога `user` ќе се промени (од null -> стварен корисник), ќе се повика fetchUserProfile
 
+  // 2) При секоја промена во input полињата
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // 3) При “Зачувај промени” -> правиме POST /profile/update-request
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setMessage("Нема токен. Најавете се повторно.");
+        return;
+      }
+
       const response = await axios.post(
         "http://localhost:5000/profile/update-request",
         formData,
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
 
       if (response.status === 200) {
         setMessage("Испратен е емаил за потврда на измените!");
       } else {
-        setMessage("Настана грешка.");
+        setMessage("Настана грешка при апдејт.");
       }
     } catch (error) {
       console.error("Error sending update request:", error);
-      setMessage("Настана грешка.");
+      setMessage("Настана грешка при апдејт.");
     }
   };
 
   return (
     <Container>
       <Title>Вашиот профил</Title>
+
       <Form onSubmit={handleSubmit}>
         <Label htmlFor="firstName">Име:</Label>
         <Input
@@ -194,7 +212,7 @@ const Profile: React.FC = () => {
           placeholder="Вашиот телефонски број"
         />
 
-        <Label htmlFor="password">Нова лозинка:</Label>
+        <Label htmlFor="password">Нова лозинка (опционално):</Label>
         <Input
           type="password"
           id="password"
@@ -206,7 +224,10 @@ const Profile: React.FC = () => {
 
         <Button type="submit">Зачувај промени</Button>
       </Form>
-      {message && <p>{message}</p>}
+
+      {message && (
+        <p style={{ textAlign: "center", marginTop: "20px" }}>{message}</p>
+      )}
     </Container>
   );
 };

@@ -7,22 +7,20 @@ import {
   updateMenuItem,
   deleteMenuItem,
   fetchRestaurants as fetchAll,
+  assignRestaurantOwner,
 } from "./AdminPanel.utils";
+
 import type { Restaurant, MenuItem } from "./AdminPanel.utils";
 
-/**
- * Handler за земање списоци на ресторани и ажурирање на локален state
- */
+/* ---------------- Fetch Restaurants ---------------- */
 export const handleFetchRestaurants = async (
   setRestaurants: (val: Restaurant[]) => void
 ) => {
-  const data = await fetchAll(); // повикуваме функција од AdminPanel.utils
+  const data = await fetchAll();
   setRestaurants(data);
 };
 
-/**
- * Handler за додавање сосема нов ресторан + init menu items
- */
+/* ---------------- Add NEW Restaurant ---------------- */
 export const handleAddRestaurant = async (
   e: React.FormEvent,
   newRestaurant: {
@@ -56,7 +54,6 @@ export const handleAddRestaurant = async (
 ) => {
   e.preventDefault();
   try {
-    // 1) Подготви FormData
     const formData = new FormData();
     formData.append("name", newRestaurant.name || "");
     formData.append("cuisine", newRestaurant.cuisine || "");
@@ -64,7 +61,8 @@ export const handleAddRestaurant = async (
     if (newRestaurant.imageFile) {
       formData.append("image", newRestaurant.imageFile);
     }
-    // Мени предмети
+
+    // Менито (optional)
     formData.append(
       "menuItems",
       JSON.stringify(
@@ -72,20 +70,20 @@ export const handleAddRestaurant = async (
           ...item,
           ingredients: item.ingredients
             ? item.ingredients.map((ing) => ing.name)
-            : [], // ✅ Испрати само имиња на состојките
+            : [],
         }))
       )
     );
+    // Фајлови за слика на тие menu-items
     menuItems.forEach((item) => {
       if (item.imageFile) {
         formData.append("menuImages", item.imageFile);
       }
     });
 
-    // 2) Испрати до backend
     await addRestaurant(formData);
 
-    // 3) Освежи и ресетирај
+    // refresh
     fetchRestaurants();
     setNewRestaurant({
       name: "",
@@ -99,9 +97,7 @@ export const handleAddRestaurant = async (
   }
 };
 
-/**
- * Handler за ажурирање (PUT) на ресторан
- */
+/* ---------------- Update Restaurant ---------------- */
 export const handleUpdateRestaurant = async (
   e: React.FormEvent,
   editRestaurant: Restaurant,
@@ -119,7 +115,7 @@ export const handleUpdateRestaurant = async (
     if (editRestaurant.imageFile) {
       formData.append("image", editRestaurant.imageFile);
     } else {
-      formData.append("image_url", editRestaurant.image_url || ""); // ✅ Осигурување дека `image_url` не е изгубен
+      formData.append("image_url", editRestaurant.image_url || "");
     }
 
     await updateRestaurant(editRestaurant.id, formData);
@@ -131,9 +127,7 @@ export const handleUpdateRestaurant = async (
   }
 };
 
-/**
- * Handler за бришење (DELETE) ресторан
- */
+/* ---------------- Delete Restaurant ---------------- */
 export const handleDeleteRestaurant = async (
   id: number,
   fetchRestaurants: () => void
@@ -146,35 +140,9 @@ export const handleDeleteRestaurant = async (
   }
 };
 
-/**
- * Handler за отварање форма за додавање meni item во Постоечки Ресторан
- */
-export const handleOpenAddItem = (
-  restaurantId: number,
-  setShowAddItemId: (val: number | null) => void,
-  setNewItem: (val: {
-    name: string;
-    price: string;
-    category: string;
-    ingredients: string[];
-    imageFile: File | null;
-  }) => void
-) => {
-  setShowAddItemId(restaurantId);
-  setNewItem({
-    name: "",
-    price: "",
-    category: "",
-    ingredients: [],
-    imageFile: null,
-  });
-};
-
-/**
- * Handler за додавање meni item во Постоечки Ресторан
- */
+/* ---------------- Add Menu Item to existing Restaurant ---------------- */
 export const handleAddMenuItemToRestaurant = async (
-  showAddItemId: number | null,
+  restaurantId: number,
   newItem: {
     name: string;
     price: string;
@@ -183,26 +151,24 @@ export const handleAddMenuItemToRestaurant = async (
     imageFile: File | null;
   },
   fetchRestaurants: () => void,
-  setShowAddItemId: (val: number | null) => void,
+  setShowAddItem: (val: boolean) => void,
   setNewItem: (val: {
     name: string;
     price: string;
     category: string;
-    ingredients: string[]; // ✅ Додади го ова
+    ingredients: string[];
     imageFile: File | null;
   }) => void
 ) => {
-  if (!showAddItemId) return;
   try {
     const formData = new FormData();
     formData.append("name", newItem.name);
     formData.append("price", newItem.price);
     formData.append("category", newItem.category);
 
-    // ✅ Осигурај се дека `ingredients` се обработува како низа, без празни вредности
     const cleanedIngredients = (newItem.ingredients || [])
-      .map((ing) => ing.trim()) // Тримирање на празни размaци
-      .filter((ing) => ing.length > 0); // Отстранување на празни состојки
+      .map((ing) => ing.trim())
+      .filter((ing) => ing.length > 0);
 
     formData.append("ingredients", JSON.stringify(cleanedIngredients));
 
@@ -210,25 +176,24 @@ export const handleAddMenuItemToRestaurant = async (
       formData.append("image", newItem.imageFile);
     }
 
-    await addMenuItem(showAddItemId, formData);
+    await addMenuItem(restaurantId, formData);
 
+    // refresh
     fetchRestaurants();
-    setShowAddItemId(null);
+    setShowAddItem(false);
     setNewItem({
       name: "",
       price: "",
       category: "",
       ingredients: [],
       imageFile: null,
-    }); // ✅ Додадено празна низа за `ingredients`
+    });
   } catch (error) {
     console.error("Error adding menu item:", error);
   }
 };
 
-/**
- * Handler за бришење meni item
- */
+/* ---------------- Delete Menu Item ---------------- */
 export const handleDeleteMenuItem = async (
   menuItemId: number,
   fetchRestaurants: () => void
@@ -241,9 +206,7 @@ export const handleDeleteMenuItem = async (
   }
 };
 
-/**
- * Handler за ажурирање (PUT) meni item
- */
+/* ---------------- Update Menu Item ---------------- */
 export const handleUpdateMenuItem = async (
   editingItem: MenuItem,
   fetchRestaurants: () => void,
@@ -256,29 +219,40 @@ export const handleUpdateMenuItem = async (
     formData.append("price", editingItem.price);
     formData.append("category", editingItem.category);
 
-    // ✅ Осигурај се дека `ingredients` е низа, отстрани празни вредности и дупликати
     const cleanedIngredients = Array.from(
       new Set(
         (editingItem.ingredients || [])
-          .map((ing) => ing.trim()) // Тримирање на празни размaци
-          .filter((ing) => ing.length > 0) // Отстранување на празни елементи
+          .map((ing) => ing.trim())
+          .filter((ing) => ing.length > 0)
       )
     );
-
-    console.log("📤 Испраќам следни `ingredients`:", cleanedIngredients);
-
     formData.append("ingredients", JSON.stringify(cleanedIngredients));
 
     if (editingItem.imageFile) {
       formData.append("image", editingItem.imageFile);
     }
 
-    if (!editingItem.id) return; // safety
+    if (!editingItem.id) return;
     await updateMenuItem(editingItem.id, formData);
 
     setEditingItem(null);
     fetchRestaurants();
   } catch (error) {
     console.error("❌ Грешка при ажурирање на мени предмет:", error);
+  }
+};
+
+/* ---------------- Assign Owner Handler ---------------- */
+export const handleAssignOwner = async (
+  restId: number,
+  userId: number,
+  fetchRestaurants: () => void
+) => {
+  try {
+    await assignRestaurantOwner(restId, userId);
+    fetchRestaurants();
+    alert("Owner assigned successfully!");
+  } catch {
+    alert("Error assigning owner!");
   }
 };

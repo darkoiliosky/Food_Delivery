@@ -1,5 +1,8 @@
 // AdminPanel.tsx
+
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+
 import {
   PanelContainer,
   Header,
@@ -13,90 +16,58 @@ import {
   CardTopRow,
   CardInfo,
   Image,
-  MenuItemsContainer,
-  CollapsibleContainer,
 } from "./AdminPanel.styles";
 
-// ✅ Ги увезуваме "handler" функциите
 import {
   handleFetchRestaurants,
   handleAddRestaurant,
   handleDeleteRestaurant,
   handleUpdateRestaurant,
-  handleOpenAddItem,
-  handleAddMenuItemToRestaurant,
-  handleDeleteMenuItem,
-  handleUpdateMenuItem,
 } from "./AdminPanel.handlers";
 
-// Типизиран interface (можеш и во .utils)
-interface Restaurant {
-  id: number;
-  name: string;
-  cuisine: string;
-  image_url: string;
-  working_hours: string;
-  imageFile?: File | null;
-  menuItems?: MenuItem[];
-}
-
-interface MenuItem {
-  id?: number;
-  name: string;
-  price: string;
-  category: string;
-  ingredients?: string[]; // ✅ Додај ова поле
-  imageFile?: File | null;
-  image_url?: string;
-}
+// Додадено:
+import { handleAssignOwner } from "./AdminPanel.handlers";
+import { fetchRestaurantUsers, Restaurant, User } from "./AdminPanel.utils";
 
 const AdminPanel = () => {
-  // Листа со сите ресторани
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-
-  // Податоци за создавање нов ресторан
   const [newRestaurant, setNewRestaurant] = useState({
     name: "",
     cuisine: "",
     working_hours: "",
     imageFile: null as File | null,
   });
-
-  // Ресторан за Edit
   const [editRestaurant, setEditRestaurant] = useState<Restaurant | null>(null);
-
-  // "Привремени" мени-предмети при создавање нов ресторан
   const [menuItems, setMenuItems] = useState<
     { name: string; price: string; category: string; imageFile: File | null }[]
   >([]);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // За додавање мени-предмет во постоечки ресторан
-  const [showAddItemId, setShowAddItemId] = useState<number | null>(null);
-  const [newItem, setNewItem] = useState({
-    name: "",
-    price: "",
-    category: "",
-    ingredients: [] as string[],
-    imageFile: null as File | null,
-  });
+  // ====== Додадено: list of restaurantUsers (role="restaurant") ======
+  const [restaurantUsers, setRestaurantUsers] = useState<User[]>([]);
 
-  // Edit на веќе постоечки мени предмет
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>(""); // ✅ Додај state за пребарување
+  // ====== Додадено: AssignOwner modal states ======
+  const [assignOwnerRestId, setAssignOwnerRestId] = useState<number | null>(
+    null
+  );
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
 
-  // При mount: земи ги сите ресторани
+  // При mount: земи ресторани, земи restaurantUsers
   useEffect(() => {
     fetchAllRestaurants();
+    fetchAllRestaurantUsers(); // нова функција
   }, []);
 
-  // Обвивка да ја повикаме handler функцијата за fetch
   const fetchAllRestaurants = async () => {
     await handleFetchRestaurants(setRestaurants);
   };
 
-  // ======================= HANDLERS ======================
+  const fetchAllRestaurantUsers = async () => {
+    const data = await fetchRestaurantUsers();
+    setRestaurantUsers(data);
+  };
 
-  // Глобална промена на сликата (за newRestaurant или editRestaurant)
+  // Глобална промена на сликата ...
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
@@ -107,18 +78,39 @@ const AdminPanel = () => {
       }
     }
   };
+
   const filteredRestaurants = restaurants.filter((restaurant) =>
     restaurant.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // === Assign Owner logics ===
+  const openAssignOwnerModal = (restId: number) => {
+    setAssignOwnerRestId(restId);
+    setSelectedUserId(null); // ресетирај го dropdown
+  };
+  const closeAssignOwnerModal = () => {
+    setAssignOwnerRestId(null);
+    setSelectedUserId(null);
+  };
+  const doAssignOwner = async () => {
+    if (assignOwnerRestId && selectedUserId) {
+      await handleAssignOwner(
+        assignOwnerRestId,
+        selectedUserId,
+        fetchAllRestaurants
+      );
+      closeAssignOwnerModal();
+    }
+  };
+
   return (
     <PanelContainer>
       <Header>Admin Panel</Header>
 
-      {/* ------------------- EDIT OR ADD Restaurant ------------------- */}
+      {/* --- EDIT / ADD Restaurant --- */}
       {editRestaurant ? (
         <>
           <SubHeader>Edit Restaurant</SubHeader>
-
           <FormContainer
             onSubmit={(e) =>
               handleUpdateRestaurant(
@@ -175,6 +167,7 @@ const AdminPanel = () => {
       ) : (
         <>
           <SubHeader>Add New Restaurant</SubHeader>
+          {/* Optional Menu Items for the new Restaurant */}
           <div>
             <SubHeader>Menu Items for NEW Restaurant (Optional)</SubHeader>
             {menuItems.map((item, index) => (
@@ -283,7 +276,6 @@ const AdminPanel = () => {
                 })
               }
             />
-
             <Input type="file" accept="image/*" onChange={handleFileChange} />
             <Button type="submit">Add Restaurant</Button>
           </FormContainer>
@@ -291,7 +283,7 @@ const AdminPanel = () => {
       )}
 
       <SubHeader>Existing Restaurants:</SubHeader>
-      {/* ✅ Поле за пребарување */}
+      {/* Search Field */}
       <Input
         type="text"
         placeholder="Search restaurants..."
@@ -299,6 +291,7 @@ const AdminPanel = () => {
         onChange={(e) => setSearchQuery(e.target.value)}
         style={{ marginBottom: "20px", width: "100%", padding: "10px" }}
       />
+
       <RestaurantGrid>
         {filteredRestaurants.map((r) => (
           <RestaurantCard key={r.id}>
@@ -318,16 +311,16 @@ const AdminPanel = () => {
 
             <ButtonRow>
               <Button
-                onClick={() => {
+                onClick={() =>
                   setEditRestaurant({
                     id: r.id,
                     name: r.name,
                     cuisine: r.cuisine,
                     working_hours: r.working_hours,
-                    image_url: r.image_url, // ✅ Додадено за да не исчезне сликата
+                    image_url: r.image_url,
                     imageFile: null,
-                  });
-                }}
+                  })
+                }
               >
                 Edit
               </Button>
@@ -342,242 +335,73 @@ const AdminPanel = () => {
               </Button>
             </ButtonRow>
 
-            <MenuItemsContainer>
-              <h4>Menu Items:</h4>
-              {r.menuItems && r.menuItems.length > 0 ? (
-                r.menuItems.map((item, idx) => (
-                  <div className="menu-item-row" key={idx}>
-                    <p>
-                      {item.name} - ${item.price}
-                    </p>
-                    {item.image_url && (
-                      <img
-                        src={`http://localhost:5000${item.image_url}`}
-                        alt={item.name}
-                        width="50"
-                      />
-                    )}
-
-                    {item.id !== undefined && (
-                      <>
-                        <Button
-                          variant="primary"
-                          onClick={() =>
-                            setEditingItem({
-                              ...item,
-                              ingredients: item.ingredients || [], // Осигурај дека нема `undefined`
-                            })
-                          }
-                        >
-                          ✏️ Edit
-                        </Button>
-
-                        <Button
-                          variant="danger"
-                          onClick={() =>
-                            handleDeleteMenuItem(item.id!, fetchAllRestaurants)
-                          }
-                        >
-                          ❌
-                        </Button>
-                      </>
-                    )}
-
-                    {/* Ако editingItem е истиот */}
-                    {editingItem && editingItem.id === item.id && (
-                      <CollapsibleContainer>
-                        <h5>Edit Menu Item: {editingItem.name}</h5>
-
-                        <Input
-                          type="text"
-                          placeholder="Name"
-                          value={editingItem.name}
-                          onChange={(e) =>
-                            setEditingItem({
-                              ...editingItem,
-                              name: e.target.value,
-                            })
-                          }
-                        />
-
-                        <Input
-                          type="number"
-                          placeholder="Price"
-                          value={editingItem.price}
-                          onChange={(e) =>
-                            setEditingItem({
-                              ...editingItem,
-                              price: (
-                                parseFloat(e.target.value) || 0
-                              ).toString(),
-                            })
-                          }
-                        />
-
-                        <Input
-                          type="text"
-                          placeholder="Category"
-                          value={editingItem.category}
-                          onChange={(e) =>
-                            setEditingItem({
-                              ...editingItem,
-                              category: e.target.value,
-                            })
-                          }
-                        />
-
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              setEditingItem({
-                                ...editingItem,
-                                imageFile: e.target.files[0],
-                                image_url: editingItem.image_url, // ✅ Додадено за да не исчезне сликата
-                              });
-                            }
-                          }}
-                        />
-
-                        {/* ✅ Поле за состојки во еден input */}
-                        <Input
-                          type="text"
-                          placeholder="Ingredients (comma-separated)"
-                          value={
-                            editingItem.ingredients
-                              ? editingItem.ingredients.join(", ")
-                              : ""
-                          }
-                          onChange={(e) =>
-                            setEditingItem({
-                              ...editingItem,
-                              ingredients: e.target.value
-                                .split(",")
-                                .map((ing) => ing.trim())
-                                .filter((ing) => ing.length > 0), // ✅ Отстранување на празни елементи
-                            })
-                          }
-                        />
-
-                        {/* Додавање на ново `ingredient` поле */}
-                        <Button
-                          onClick={() =>
-                            setEditingItem({
-                              ...editingItem,
-                              ingredients: [
-                                ...(editingItem.ingredients || []),
-                                "",
-                              ],
-                            })
-                          }
-                        >
-                          ➕ Додади состојка
-                        </Button>
-
-                        <ButtonRow>
-                          <Button
-                            onClick={() =>
-                              handleUpdateMenuItem(
-                                editingItem,
-                                fetchAllRestaurants,
-                                setEditingItem
-                              )
-                            }
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            onClick={() => setEditingItem(null)}
-                          >
-                            Cancel
-                          </Button>
-                        </ButtonRow>
-                      </CollapsibleContainer>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p>No menu items yet.</p>
-              )}
-
-              <Button
-                className="add-menu-btn"
-                onClick={() =>
-                  handleOpenAddItem(r.id, setShowAddItemId, setNewItem)
-                }
-              >
-                + Add Menu Item
+            {/* Assign Owner копче */}
+            <ButtonRow>
+              <Button onClick={() => openAssignOwnerModal(r.id)}>
+                Assign Owner
               </Button>
-
-              {showAddItemId === r.id && (
-                <CollapsibleContainer>
-                  <h5>Add new item for: {r.name}</h5>
-                  <Input
-                    type="text"
-                    placeholder="Name"
-                    value={newItem.name}
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, name: e.target.value })
-                    }
-                  />
-                  <Input
-                    type="text"
-                    placeholder="Price"
-                    value={newItem.price}
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, price: e.target.value })
-                    }
-                  />
-                  <Input
-                    type="text"
-                    placeholder="Category"
-                    value={newItem.category}
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, category: e.target.value })
-                    }
-                  />
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setNewItem({
-                          ...newItem,
-                          imageFile: e.target.files[0],
-                        });
-                      }
-                    }}
-                  />
-
-                  <ButtonRow>
-                    <Button
-                      onClick={() =>
-                        handleAddMenuItemToRestaurant(
-                          showAddItemId,
-                          newItem,
-                          fetchAllRestaurants,
-                          setShowAddItemId,
-                          setNewItem
-                        )
-                      }
-                    >
-                      Submit
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowAddItemId(null)}
-                    >
-                      Cancel
-                    </Button>
-                  </ButtonRow>
-                </CollapsibleContainer>
-              )}
-            </MenuItemsContainer>
+              <Link to={`/admin/restaurants/${r.id}/menu`}>
+                <Button>View Menu</Button>
+              </Link>
+            </ButtonRow>
           </RestaurantCard>
         ))}
       </RestaurantGrid>
+
+      {/* ============== MODAL ЗА ASSIGN OWNER ============== */}
+      {assignOwnerRestId !== null && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={closeAssignOwnerModal}
+        >
+          <div
+            style={{
+              background: "#fff",
+              padding: "20px",
+              borderRadius: "10px",
+              width: "400px",
+              maxWidth: "90%",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Assign Owner for Restaurant ID #{assignOwnerRestId}</h3>
+            <p>Select a user with role="restaurant":</p>
+
+            <select
+              style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
+              value={selectedUserId || ""}
+              onChange={(e) => setSelectedUserId(Number(e.target.value))}
+            >
+              <option value="">-- select user --</option>
+              {restaurantUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} {u.lastname} (ID: {u.id})
+                </option>
+              ))}
+            </select>
+
+            <ButtonRow>
+              <Button onClick={doAssignOwner} disabled={!selectedUserId}>
+                Assign
+              </Button>
+              <Button variant="secondary" onClick={closeAssignOwnerModal}>
+                Cancel
+              </Button>
+            </ButtonRow>
+          </div>
+        </div>
+      )}
     </PanelContainer>
   );
 };
