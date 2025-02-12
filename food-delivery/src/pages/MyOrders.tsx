@@ -65,7 +65,7 @@ const MyOrders: React.FC = () => {
         });
 
         console.log("📦 Преземени нарачки:", response.data);
-        setOrders(response.data);
+        setOrders(response.data as Order[]);
       } catch (error) {
         console.error("❌ Грешка при преземање нарачки:", error);
         setError(

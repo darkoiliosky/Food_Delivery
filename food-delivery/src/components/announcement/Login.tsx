@@ -1,5 +1,5 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, isAxiosError } from "axios";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
@@ -102,7 +102,7 @@ const Login: React.FC = () => {
       }
     } catch (err) {
       // Проверка на статусот
-      if (axios.isAxiosError(err) && err.response) {
+      if (isAxiosError(err) && err.response) {
         const status = err.response.status;
         if (status === 401) {
           toast.error("Invalid password!");

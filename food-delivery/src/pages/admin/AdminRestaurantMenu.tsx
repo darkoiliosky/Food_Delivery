@@ -2,6 +2,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchRestaurants, Restaurant, MenuItem } from "./AdminPanel.utils";
+import styled from "styled-components";
+
 import {
   handleAddMenuItemToRestaurant,
   handleDeleteMenuItem,
@@ -15,7 +17,6 @@ import {
   ButtonRow,
   Button,
 } from "./AdminPanel.styles";
-import styled from "styled-components";
 
 /* ----------------- Styled Components ----------------- */
 const MenuItemsWrapper = styled.div`

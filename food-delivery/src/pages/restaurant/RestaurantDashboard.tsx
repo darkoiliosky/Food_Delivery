@@ -1,48 +1,17 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
-import styled from "styled-components";
-
-const Container = styled.div`
-  max-width: 900px;
-  margin: 40px auto;
-  padding: 20px;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-`;
-
-const Title = styled.h2`
-  text-align: center;
-  margin-bottom: 20px;
-`;
-
-const OrderList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-`;
-
-const OrderCard = styled.div`
-  background: #f7f9fc;
-  border-left: 5px solid #3498db;
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-`;
-
-const StatusButton = styled.button`
-  margin-top: 10px;
-  padding: 8px 12px;
-  background-color: #3498db;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  &:hover {
-    background-color: #2980b9;
-  }
-`;
+import {
+  Container,
+  Title,
+  DashboardContent,
+  Section,
+  SectionTitle,
+  OrderList,
+  OrderCard,
+  StatusButton,
+  Message,
+} from "./RestaurantDashboard.styles";
 
 interface Order {
   id: number;
@@ -54,7 +23,8 @@ interface Order {
 const RestaurantDashboard: React.FC = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
+
   useEffect(() => {
     if (!user || user.role !== "restaurant") {
       setLoading(false);
@@ -73,11 +43,10 @@ const RestaurantDashboard: React.FC = () => {
           }
         );
 
-        console.log("📦 Orders fetched:", response.data); // Додај ова за дебагирање
-
+        console.log("📦 Добиени нарачки:", response.data); // Додај за дебагирање
         setOrders(response.data);
       } catch (error) {
-        console.error("Error fetching restaurant orders:", error);
+        console.error("❌ Грешка при вчитување на нарачки:", error);
       } finally {
         setLoading(false);
       }
@@ -86,7 +55,7 @@ const RestaurantDashboard: React.FC = () => {
     fetchRestaurantOrders();
   }, [user]);
 
-  // Ажурирање (PUT) /orders/:id/status
+  // Функција за ажурирање на статус на нарачка
   const updateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
       const token = localStorage.getItem("token");
@@ -99,65 +68,79 @@ const RestaurantDashboard: React.FC = () => {
           },
         }
       );
+
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
       );
     } catch (err) {
-      console.error("Error updating order status:", err);
+      console.error("❌ Грешка при ажурирање на статус:", err);
       alert("Не може да се ажурира статусот!");
     }
   };
 
-  if (loading) return <Container>Вчитување на нарачките...</Container>;
+  if (loading) return <Message>🔄 Вчитување на нарачките...</Message>;
 
   if (!user || user.role !== "restaurant") {
     return (
       <Container>
-        <Title>Ресторан Dashboard</Title>
-        <p>Немате овластување за оваа страница.</p>
+        <Title>🚫 Немате пристап до оваа страница.</Title>
       </Container>
     );
   }
 
   return (
     <Container>
-      <Title>Ресторан Dashboard</Title>
-      {orders.length === 0 ? (
-        <p>Нема нарачки за прикажување.</p>
-      ) : (
-        <OrderList>
-          {orders.map((order) => (
-            <OrderCard key={order.id}>
-              <p>
-                <strong>Нарачка #{order.id}</strong> — Статус: {order.status}
-              </p>
-              <p>Цена: {Number(order.total_price).toFixed(2)} ден.</p>
-              {order.created_at && (
-                <p>Датум: {new Date(order.created_at).toLocaleString()}</p>
-              )}
+      <Title>📊 Контролна Табла за Ресторан</Title>
+      <DashboardContent>
+        <Section>
+          <SectionTitle>Нарачки</SectionTitle>
+          {orders.length === 0 ? (
+            <Message>📭 Нема нарачки за прикажување.</Message>
+          ) : (
+            <OrderList>
+              {orders.map((order) => (
+                <OrderCard key={order.id}>
+                  <p>
+                    <strong>Нарачка #{order.id}</strong>
+                  </p>
+                  <p>
+                    <strong>Статус:</strong> {order.status}
+                  </p>
+                  <p>
+                    <strong>Цена:</strong>{" "}
+                    {Number(order.total_price).toFixed(2)} ден.
+                  </p>
+                  {order.created_at && (
+                    <p>
+                      <strong>Датум:</strong>{" "}
+                      {new Date(order.created_at).toLocaleString()}
+                    </p>
+                  )}
 
-              {/* Логика: Ресторан менува од “Примена” -> “Во подготовка”, па -> “Завршена” */}
-              {order.status === "Примена" && (
-                <StatusButton
-                  onClick={() => updateOrderStatus(order.id, "Во подготовка")}
-                >
-                  Започни Подготовка
-                </StatusButton>
-              )}
+                  {/* Контрола на статусот на нарачките */}
+                  {order.status === "Примена" && (
+                    <StatusButton
+                      onClick={() =>
+                        updateOrderStatus(order.id, "Во подготовка")
+                      }
+                    >
+                      🏁 Започни Подготовка
+                    </StatusButton>
+                  )}
 
-              {order.status === "Во подготовка" && (
-                <StatusButton
-                  onClick={() => updateOrderStatus(order.id, "Завршена")}
-                >
-                  Заврши Подготовка
-                </StatusButton>
-              )}
-
-              {/* Ако е во достава, испорачана, итн., нема копче */}
-            </OrderCard>
-          ))}
-        </OrderList>
-      )}
+                  {order.status === "Во подготовка" && (
+                    <StatusButton
+                      onClick={() => updateOrderStatus(order.id, "Завршена")}
+                    >
+                      ✅ Заврши Подготовка
+                    </StatusButton>
+                  )}
+                </OrderCard>
+              ))}
+            </OrderList>
+          )}
+        </Section>
+      </DashboardContent>
     </Container>
   );
 };

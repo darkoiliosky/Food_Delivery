@@ -895,54 +895,64 @@ app.get("/me", authenticateToken, async (req, res) => {
   }
 });
 
-// -------- PUT /orders/:id/accept (delivery only) --------
-// Пример: /orders/:id/accept
 app.put("/orders/:id/accept", authenticateToken, async (req, res) => {
   if (req.user.role !== "delivery") {
     return res
       .status(403)
       .json({ message: "Само доставувачи можат да прифаќаат нарачки!" });
   }
+
   try {
     const { id } = req.params;
-    const checkOrder = await pool.query(
-      "SELECT status FROM orders WHERE id=$1",
-      [id]
-    );
-    if (checkOrder.rows.length === 0) {
+    const deliveryId = req.user.id;
+
+    console.log(`🔍 Прифатена нарачка од доставувач:`, deliveryId);
+
+    // Проверка дали нарачката веќе има доставувач
+    const orderResult = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      id,
+    ]);
+
+    if (orderResult.rows.length === 0) {
+      console.log("❌ Нарачката не постои!");
       return res.status(404).json({ message: "Нарачката не е пронајдена!" });
     }
-    const currentStatus = checkOrder.rows[0].status;
 
-    // Ако веќе е во достава, врати грешка
-    if (currentStatus === "Во достава") {
+    const order = orderResult.rows[0];
+
+    if (order.delivery_id !== null) {
+      console.log("❌ Нарачката веќе е преземена!");
       return res.status(400).json({
-        message: "Оваа нарачка веќе е прифатена од друг доставувач!",
+        message: "Оваа нарачка веќе е преземена од друг доставувач!",
       });
     }
 
-    // Ако не е "Во достава", значи може да ја прифати
-    await pool.query("UPDATE orders SET status='Во достава' WHERE id=$1", [id]);
-    res.json({ message: "Нарачката е преземена (Во достава)!" });
+    // ✅ Ажурирање на нарачката со delivery_id
+    const updateResult = await pool.query(
+      "UPDATE orders SET status = 'Во достава', delivery_id = $1 WHERE id = $2 RETURNING *",
+      [deliveryId, id]
+    );
+
+    console.log("✅ Успешно ажурирана нарачка:", updateResult.rows[0]);
+
+    res.json({
+      message: "Нарачката е успешно преземена!",
+      order: updateResult.rows[0],
+    });
   } catch (error) {
-    console.error("❌ Error accepting order:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("❌ Грешка при прифаќање на нарачката:", error);
+    res.status(500).json({ message: "Грешка при обработка на барањето." });
   }
 });
 
 // -------- PUT /orders/:id/status --------
-// server.js
 app.put("/orders/:id/status", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  // Дефинираме дозволени статуси за секоја улога
-  const restaurantAllowed = ["Во подготовка", "Завршена"];
-  const deliveryAllowed = ["Испорачана"];
-
   try {
     const checkOrder = await pool.query(
-      "SELECT status FROM orders WHERE id=$1",
+      "SELECT status, delivery_id FROM orders WHERE id=$1",
       [id]
     );
     if (checkOrder.rows.length === 0) {
@@ -950,39 +960,21 @@ app.put("/orders/:id/status", authenticateToken, async (req, res) => {
     }
 
     const currentStatus = checkOrder.rows[0].status;
+    const currentDelivery = checkOrder.rows[0].delivery_id;
 
-    // Ресторанот може да постави "Во подготовка" или "Завршена"
-    if (req.user.role === "restaurant") {
-      if (!restaurantAllowed.includes(status)) {
+    if (req.user.role === "delivery") {
+      if (status === "Испорачана" && currentDelivery !== req.user.id) {
         return res
-          .status(400)
-          .json({
-            message:
-              "Ресторанот може да постави само 'Во подготовка' или 'Завршена'.",
-          });
+          .status(403)
+          .json({ message: "Оваа нарачка не е доделена на вас!" });
       }
-    }
-    // Доставувачот може да ја испорача, но САМО ако статусот веќе е "Завршена"
-    else if (req.user.role === "delivery") {
-      if (status === "Во достава" && currentStatus !== "Завршена") {
-        return res
-          .status(400)
-          .json({
-            message: "Може да прифатите само нарачки кои се 'Завршена'.",
-          });
-      }
-      if (!deliveryAllowed.includes(status)) {
+      if (status !== "Испорачана") {
         return res
           .status(400)
           .json({ message: "Доставувачот може да постави само 'Испорачана'." });
       }
-    } else {
-      return res
-        .status(403)
-        .json({ message: "Немате право да го ажурирате статусот." });
     }
 
-    // Ако сите проверки се во ред, ажурирај го статусот
     await pool.query("UPDATE orders SET status=$1 WHERE id=$2", [status, id]);
     return res.json({ message: `Order status updated to '${status}'.` });
   } catch (error) {
@@ -991,10 +983,11 @@ app.put("/orders/:id/status", authenticateToken, async (req, res) => {
   }
 });
 
+// server.js
+
 // -------- GET /my-orders --------
 app.get("/my-orders", authenticateToken, async (req, res) => {
   try {
-    // Земаме ги сите нарачки на корисникот
     const ordersResult = await pool.query(
       "SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC",
       [req.user.id]
@@ -1006,10 +999,10 @@ app.get("/my-orders", authenticateToken, async (req, res) => {
 
     const orders = ordersResult.rows;
 
-    // Земаме ги сите артикли од нарачките
+    // Проверка дали се земаат артиклите од нарачките
     const orderIds = orders.map((order) => order.id);
     const orderItemsResult = await pool.query(
-      `SELECT oi.order_id, oi.item_id, oi.quantity, oi.item_price, mi.name, mi.image_url
+      `SELECT oi.order_id, mi.name, mi.image_url, oi.quantity 
        FROM order_items oi
        JOIN menu_items mi ON oi.item_id = mi.id
        WHERE oi.order_id = ANY($1::int[])`,
@@ -1025,7 +1018,7 @@ app.get("/my-orders", authenticateToken, async (req, res) => {
       itemsByOrder[item.order_id].push(item);
     });
 
-    // Комбинирај ги нарачките со артиклите
+    // Додај ги артиклите кон нарачките
     const ordersWithItems = orders.map((order) => ({
       ...order,
       items: itemsByOrder[order.id] || [],
@@ -1034,7 +1027,7 @@ app.get("/my-orders", authenticateToken, async (req, res) => {
     res.json(ordersWithItems);
   } catch (error) {
     console.error("❌ Грешка при преземање нарачки:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Грешка во серверот" });
   }
 });
 
@@ -1299,6 +1292,59 @@ app.get("/restaurant/orders", authenticateToken, async (req, res) => {
     res
       .status(500)
       .json({ message: "Грешка при вчитување на нарачките за ресторанот." });
+  }
+});
+
+app.get("/my-deliveries", authenticateToken, async (req, res) => {
+  if (req.user.role !== "delivery") {
+    return res
+      .status(403)
+      .json({ message: "Само доставувачи можат да пристапат!" });
+  }
+
+  try {
+    const ordersResult = await pool.query(
+      `SELECT * FROM orders 
+       WHERE (status IN ('Во подготовка', 'Завршена') AND delivery_id IS NULL) 
+       OR delivery_id = $1
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+
+    if (ordersResult.rows.length === 0) {
+      return res.json([]);
+    }
+
+    const orders = ordersResult.rows;
+    const orderIds = orders.map((order) => order.id);
+
+    // Вчитување на предметите од нарачките
+    const orderItemsResult = await pool.query(
+      `SELECT oi.order_id, mi.name, mi.image_url, oi.quantity 
+       FROM order_items oi
+       JOIN menu_items mi ON oi.item_id = mi.id
+       WHERE oi.order_id = ANY($1::int[])`,
+      [orderIds]
+    );
+
+    const itemsByOrder = {};
+    orderItemsResult.rows.forEach((item) => {
+      if (!itemsByOrder[item.order_id]) {
+        itemsByOrder[item.order_id] = [];
+      }
+      itemsByOrder[item.order_id].push(item);
+    });
+
+    // Додавање на предметите кон нарачките
+    const ordersWithItems = orders.map((order) => ({
+      ...order,
+      items: itemsByOrder[order.id] || [],
+    }));
+
+    res.json(ordersWithItems);
+  } catch (error) {
+    console.error("❌ Грешка при преземање на нарачки:", error);
+    res.status(500).json({ message: "Грешка во серверот" });
   }
 });
 

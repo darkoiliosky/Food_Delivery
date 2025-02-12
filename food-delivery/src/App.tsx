@@ -17,10 +17,11 @@ import ResetPassword from "./components/announcement/ResetPassword";
 import ForgotPassword from "./components/announcement/ForgotPassword";
 import ConfirmChanges from "./pages/ConfirmChanges";
 import AdminPanel from "./pages/admin/AdminPanel";
-import MyDeliveries from "./pages/delivery/MyDeliveries";
+import MyDeliveries from "./pages/delivery/MyDeliveries"; // ✅ Поправен import
 import MyOrders from "./pages/MyOrders";
 import AdminRestaurantMenu from "./pages/admin/AdminRestaurantMenu";
-import RestaurantDashboard from "./pages/restaurant/RestaurantDashboard"; // или каде и да ја поставиш
+import RestaurantDashboard from "./pages/restaurant/RestaurantDashboard";
+
 const App: React.FC = () => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,8 @@ const App: React.FC = () => {
               element={<AdminRestaurantMenu />}
             />
             <Route path="/my-orders" element={<MyOrders />} />
-            <Route path="/my-deliveries" element={<MyDeliveries />} />
+            <Route path="/my-deliveries" element={<MyDeliveries />} />{" "}
+            {/* ✅ Поправено */}
             <Route
               path="/restaurant-dashboard"
               element={<RestaurantDashboard />}
